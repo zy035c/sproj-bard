@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -11,7 +10,7 @@ func db_init() {
 	// create table
 	// return db
 
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	// db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	// TODO
 }
 
