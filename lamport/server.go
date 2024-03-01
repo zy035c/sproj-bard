@@ -51,7 +51,7 @@ func main() {
 	/* init lamport counter */
 	var lamportCounter uint64 = 0
 	fake_db := make(map[uint64]models.Order)
-	taskQueue := mypq.PriorityQueue{}
+	taskQueue := &mypq.PriorityQueue{}
 
 	server.Use(func(c *gin.Context) {
 
@@ -62,20 +62,37 @@ func main() {
 		/* As of now, we don't store data in db. Instead, we use a hashmap. */
 		c.Set("fake_db", &fake_db)
 
-		c.Set("task_queue", &taskQueue)
+		c.Set("task_queue", taskQueue)
 
 		c.Set("port_list", psList)
 
-		c.Next()
+		go func() {
+			for {
+				if taskQueue.Len() == 0 {
+					continue
+				}
+				item := heap.Pop(taskQueue).(mypq.Item)
+				cur_timestamp := timestamp.GetTimestamp(c)
+
+				if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp + 1 {
+					// convert the value to a function and execute it
+					fmt.Println("Will execute item. Current timestamp", cur_timestamp, "item's timestamp", item.GetPriority())
+					item.Execute()
+				}
+				heap.Push(taskQueue, item)
+			}
+		}()
+
+		// c.Next()
 	})
 
 	server.GET("/get-data", GetOrder)
 	server.GET("/get-proc-id", GetProcID)
-	server.GET("/insert-data", InsertData)
+	server.POST("/insert-data", InsertData)
 	server.POST("/sync", RcvMsg)
 	server.GET("/start", PollTaskQueue)
 
-	println("-My proc id: ", os.Getpid())
+	println("-- My proc id: ", os.Getpid())
 
 	server.Run(fmt.Sprintf(":%d", *port))
 
@@ -84,42 +101,34 @@ func main() {
 type RequestBody struct {
 	ID      uint64 `json:"id"`
 	ProcID  int    `json:"proc-id"`
-	ReqType string `json:"req-type"`
+	ReqType string `json:"req-type" binding:"required"`
 
 	Order models.Order `json:"order"`
 }
 
 /* router func: get by id */
 func GetOrder(c *gin.Context) {
-	// get by id
+	// get by current timestamp
 	// parse request by bind to a struct
 	// return the struct
+	
+	// c.Query("proc-id")
 
-	var reqBody RequestBody
-	if err := c.Bind(&reqBody); err != nil {
-		c.JSON(400, gin.H{"error": "invalid request"})
-		return
-	}
+	// pid := os.Getpid()
+	// if reqBody.ProcID != pid {
+	// 	println("I received a request that is not for this proc id")
+	// 	return
+	// }
 
-	if reqBody.ReqType != "get" {
-		c.JSON(200, gin.H{"error": "invalid request type"})
-		return
-	}
-
-	pid := os.Getpid()
-	if reqBody.ProcID != pid {
-		println("I received a request that is not for this proc id")
-		return
-	}
-
-	fmt.Println("I will fetch the db for this proc: ", pid, "at timestamp: ", timestamp.GetTimestamp(c))
+	fmt.Println("Will fetch the db for this proc:", os.Getpid(), "at timestamp:", timestamp.GetTimestamp(c))
 	order, err := controller.GetMostRecent(c, timestamp.GetTimestamp(c))
+	fmt.Println(err)
 	if err != nil {
 		c.JSON(404, gin.H{"error": err})
 		return
 	}
 
-	fmt.Println("I fetched the db for pid: ", *order)
+	fmt.Println("Fetched data for: ", *order)
 }
 
 func GetProcID(c *gin.Context) {
@@ -135,6 +144,7 @@ func InsertData(c *gin.Context) {
 
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
+		fmt.Println(err)
 		c.JSON(400, gin.H{"error": "invalid request"})
 		return
 	}
@@ -149,8 +159,6 @@ func InsertData(c *gin.Context) {
 	// 	return
 	// }
 
-	fmt.Println("I will insert the db for id: ", reqBody.ID)
-
 	task := func() {
 		computeOrDelay()
 
@@ -159,18 +167,16 @@ func InsertData(c *gin.Context) {
 			fmt.Println("Error: ", err)
 			return
 		}
-
+		fmt.Println("Insertion ok. Now timestamp:", timestamp.GetTimestamp(c))
 		SendSyncMsg(&reqBody.Order, GetPortList(c))
+		fmt.Println("Send sync msg ok.")
 	}
 
+	fmt.Println("Add Task: Will insert to db. Priority:", timestamp.GetTimestamp(c))
 	taskQueue := GetTaskQueue(c)
-	heap.Push(taskQueue, task)
+	heap.Push(taskQueue, &mypq.Item{Value: task, Priority: timestamp.GetTimestamp(c)})
 
 	c.JSON(200, gin.H{"status": "ok"})
-}
-
-func ResetLocalDatabase() {
-	// this func will drop/create a db
 }
 
 func RcvMsg(c *gin.Context) {
@@ -186,7 +192,7 @@ func RcvMsg(c *gin.Context) {
 	}
 
 	order := reqBody.Order
-	println("I received a sync msg from proc: ", order.ProcID, " timestamp: ", order.Timestamp)
+	println("I received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp)
 
 	/**
 	 *  Lamport's logical clock algorithm
@@ -194,7 +200,7 @@ func RcvMsg(c *gin.Context) {
 	local_timestamp := timestamp.GetTimestamp(c)
 	if order.Timestamp == local_timestamp {
 		println("Tie: look at procId")
-		if order.ProcID > os.Getpid() {
+		if reqBody.ProcID > os.Getpid() {
 
 			task := mypq.Item{Value: func() {
 				controller.InsertOrUpdate(c, &order, timestamp.GetTimestamp(c))
@@ -273,21 +279,21 @@ func GetPortList(c *gin.Context) []string {
 func PollTaskQueue(c *gin.Context) {
 	// block until the task's priority is less than or equal to the current timestamp
 	// pop the task from the queue and execute it
-	go func() {
-		taskQueue := GetTaskQueue(c)
-		for {
 
-			if taskQueue == nil || taskQueue.Len() == 0 {
-				continue
-			}
-			item := heap.Pop(taskQueue).(*mypq.Item)
-			cur_timestamp := timestamp.GetTimestamp(c)
+	taskQueue := GetTaskQueue(c)
+	for {
 
-			if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp+1 {
-				// convert the value to a function and execute it
-				item.Execute()
-			}
-
+		if taskQueue == nil || taskQueue.Len() == 0 {
+			continue
 		}
-	}()
+		item := heap.Pop(taskQueue).(mypq.Item)
+		cur_timestamp := timestamp.GetTimestamp(c)
+
+		if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp+1 {
+			// convert the value to a function and execute it
+			item.Execute()
+		}
+
+	}
+
 }

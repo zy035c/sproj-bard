@@ -51,5 +51,5 @@ func GetMostRecent(c *gin.Context, timestamp uint64) (*models.Order, error) {
 	if order, ok := (*db)[timestamp]; ok {
 		return &order, nil
 	}
-	return nil, fmt.Errorf("Not found timestamp: ", timestamp)
+	return nil, fmt.Errorf("NotFoundError timestamp: %d", timestamp)
 }

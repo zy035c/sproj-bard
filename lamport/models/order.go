@@ -6,14 +6,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// type Order struct {
+// 	gorm.Model
+// 	// ID          uint64 `gorm:"primaryKey" json:"id" binding:"required"`
+// 	// ProcID      int    `gorm:"not null" json:"proc_id" binding:"required"`
+// 	ProductName string `gorm:"not null" json:"product_name" binding:"required"`
+// 	// Quantity    uint64  `gorm:"not null" json:"quantity" binding:"required"`
+// 	// Price       float64 `gorm:"not null" json:"price" binding:"required"`
+// 	// UserName    string  `gorm:"not null" json:"user_name" binding:"required"`
+// 	Timestamp uint64 `gorm:"not null" json:"timestamp" binding:"required"`
+// }
+
 type Order struct {
-	gorm.Model
-	ID          uint64 `gorm:"primaryKey" json:"id" binding:"required"`
-	ProcID      int    `gorm:"not null" json:"proc_id" binding:"required"`
-	ProductName string `gorm:"not null" json:"product_name" binding:"required"`
-	// Quantity    uint64  `gorm:"not null" json:"quantity" binding:"required"`
-	// Price       float64 `gorm:"not null" json:"price" binding:"required"`
-	// UserName    string  `gorm:"not null" json:"user_name" binding:"required"`
+	ProductName string `json:"product_name" binding:"required"`
 	Timestamp uint64 `gorm:"not null" json:"timestamp" binding:"required"`
 }
 
@@ -21,9 +26,9 @@ func (o *Order) TableName() string {
 	return "orders"
 }
 
-func (o *Order) GetID() uint64 {
-	return o.ID
-}
+// func (o *Order) GetID() uint64 {
+// 	return o.ID
+// }
 
 func GetById(id uint64, db *gorm.DB) (*Order, error) {
 	// get by id
