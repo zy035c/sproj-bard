@@ -157,11 +157,6 @@ func InsertData(c *gin.Context) {
 		return
 	}
 
-	// if reqBody.ProcID != os.Getpid() {
-	// 	println("I received a request that is not for this proc id")
-	// 	return
-	// }
-
 	task := func() {
 		computeOrDelay()
 
@@ -171,6 +166,7 @@ func InsertData(c *gin.Context) {
 			return
 		}
 		fmt.Println("Insertion ok. Now timestamp:", timestamp.GetTimestamp(c))
+		reqBody.Order.Timestamp = timestamp.GetTimestamp(c) // ?
 		SendSyncMsg(&reqBody.Order, GetPortList(c))
 		fmt.Println("Send sync msg ok.")
 	}
