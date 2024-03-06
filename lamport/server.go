@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"lamport/mypq"
@@ -65,42 +66,44 @@ func main() {
 		c.Set("task_queue", taskQueue)
 
 		c.Set("port_list", psList)
-
-		go func() {
-			for {
-				if taskQueue.Len() == 0 {
-					continue
-				}
-				item := heap.Pop(taskQueue).(mypq.Item)
-				cur_timestamp := timestamp.GetTimestamp(c)
-
-				if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp + 1 {
-					// convert the value to a function and execute it
-					fmt.Println("Will execute item. Current timestamp", cur_timestamp, "item's timestamp", item.GetPriority())
-					item.Execute()
-				}
-				heap.Push(taskQueue, item)
-			}
-		}()
-
 		// c.Next()
 	})
+
+	go func() {
+		for {
+			if taskQueue.Len() == 0 {
+				continue
+			}
+			item := heap.Pop(taskQueue).(mypq.Item)
+			cur_timestamp := atomic.LoadUint64(&lamportCounter)
+
+			if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp+1 {
+				// convert the value to a function and execute it
+				fmt.Println("Will execute item. Current timestamp", cur_timestamp, "; item's timestamp", item.GetPriority())
+				item.Execute()
+			}
+			heap.Push(taskQueue, &item)
+		}
+	}()
 
 	server.GET("/get-data", GetOrder)
 	server.GET("/get-proc-id", GetProcID)
 	server.POST("/insert-data", InsertData)
 	server.POST("/sync", RcvMsg)
-	server.GET("/start", PollTaskQueue)
+
+	server.GET("/get-port", func(c *gin.Context) {
+		c.JSON(200, gin.H{"port": *port})
+	})
 
 	println("-- My proc id: ", os.Getpid())
 
 	server.Run(fmt.Sprintf(":%d", *port))
-
 }
 
 type RequestBody struct {
 	ID      uint64 `json:"id"`
 	ProcID  int    `json:"proc-id"`
+	Port    int    `json:"port"`
 	ReqType string `json:"req-type" binding:"required"`
 
 	Order models.Order `json:"order"`
@@ -111,7 +114,7 @@ func GetOrder(c *gin.Context) {
 	// get by current timestamp
 	// parse request by bind to a struct
 	// return the struct
-	
+
 	// c.Query("proc-id")
 
 	// pid := os.Getpid()
@@ -215,7 +218,7 @@ func RcvMsg(c *gin.Context) {
 
 		task := func() {
 			println("I will update my local timestamp to: ", order.Timestamp)
-			timestamp.SetTimestamp(c, order.Timestamp)
+			timestamp.SetTimestamp(c, order.Timestamp) // ?
 			controller.InsertOrUpdate(c, &order, order.Timestamp)
 		}
 
@@ -274,26 +277,4 @@ func GetTaskQueue(c *gin.Context) *mypq.PriorityQueue {
 func GetPortList(c *gin.Context) []string {
 	portList := c.MustGet("port_list").([]string)
 	return portList
-}
-
-func PollTaskQueue(c *gin.Context) {
-	// block until the task's priority is less than or equal to the current timestamp
-	// pop the task from the queue and execute it
-
-	taskQueue := GetTaskQueue(c)
-	for {
-
-		if taskQueue == nil || taskQueue.Len() == 0 {
-			continue
-		}
-		item := heap.Pop(taskQueue).(mypq.Item)
-		cur_timestamp := timestamp.GetTimestamp(c)
-
-		if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp+1 {
-			// convert the value to a function and execute it
-			item.Execute()
-		}
-
-	}
-
 }
