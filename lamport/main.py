@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 import argparse
 import subprocess
+import platform
 from myhttp import send_insert, send_get, concur_send
 
 port_list = []
@@ -102,18 +103,33 @@ if __name__ == "__main__":
     args = parser.parse_args()
     port_list = args.port
 
-    print("port_list: ", port_list)
+    os_type = platform.system()
+
+    print("-> Operating System:", os_type)
 
     # will start n golang server processes with the given port numbers
     # the command to start a server is go run server.go -port=9090 -ps=8000,9000,10000
     # where 9090 is the port number of the server, and 8000,9000,10000 are the port numbers of the other servers
     # code start below
+
+    working_dir = os.path.dirname(os.path.abspath(__file__))
     for port in port_list:
         cmd = ["go", "run", "server.go", "-port="+port, "-ps="+",".join(filter(lambda x: x != port, port_list))]
         print(" ".join(cmd))
 
         # will open a new terminal for each server
-        popen = subprocess.Popen(["gnome-terminal", "--", "bash", "-c", " ".join(cmd)])
+        if os_type == "Linux":
+            popen = subprocess.Popen(["gnome-terminal", "--", "bash", "-c", " ".join(cmd)])
+        elif os_type == "Darwin":
+            apple_script = f'tell application "Terminal" to do script "cd {working_dir};{" ".join(cmd)}"'
+            # osascript AppleScript
+            popen = subprocess.Popen(['osascript', '-e', apple_script])
+
+            # popen = subprocess.Popen(["open", "-a", "Terminal", "bash", "-c", " ".join(cmd)])
+        else:
+            print("Unsupported operating system:", os_type)
+            exit()
+
         pid_list.append(popen.pid)
 
     terminal_interact()

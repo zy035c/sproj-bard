@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,6 +47,8 @@ func main() {
 	fake_db := make(map[uint64]models.Order)
 	taskQueue := &mypq.PriorityQueue{}
 
+	routerLock := sync.Mutex{}
+
 	server.Use(func(c *gin.Context) {
 
 		c.Set("lamport-counter", &lamportCounter)
@@ -58,6 +61,8 @@ func main() {
 		c.Set("task_queue", taskQueue)
 
 		c.Set("port_list", psList)
+
+		c.Set("router_lock", &routerLock)
 		// c.Next()
 	})
 
@@ -139,6 +144,9 @@ func InsertData(c *gin.Context) {
 	// insert (or said update) data
 	// parse request by bind to a struct
 	// return the struct
+	lock := GetRouterLock(c)
+	lock.Lock()
+	defer lock.Unlock()
 
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
@@ -174,6 +182,10 @@ func InsertData(c *gin.Context) {
 }
 
 func RcvMsg(c *gin.Context) {
+	lock := GetRouterLock(c)
+	lock.Lock()
+	defer lock.Unlock()
+
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
 		fmt.Println(err)
@@ -213,7 +225,7 @@ func RcvMsg(c *gin.Context) {
 			taskQueue := GetTaskQueue(c)
 
 			heap.Push(taskQueue, &task)
-			fmt.Println("Add task: update entry to", order)
+			fmt.Println("Add Task: update entry to", order)
 		}
 
 	} else if order.Timestamp > local_timestamp {
@@ -279,4 +291,9 @@ func GetTaskQueue(c *gin.Context) *mypq.PriorityQueue {
 func GetPortList(c *gin.Context) []string {
 	portList := c.MustGet("port_list").([]string)
 	return portList
+}
+
+func GetRouterLock(c *gin.Context) *sync.Mutex { 
+	lock := c.MustGet("router_lock").(*sync.Mutex)
+	return lock
 }

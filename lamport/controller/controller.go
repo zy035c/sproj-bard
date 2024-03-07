@@ -19,12 +19,6 @@ func InsertOrUpdate(c *gin.Context, order *models.Order, timestamp uint64) (*mod
 
 	db := make_fake_db(c)
 
-	// if key exists, throw error
-	if _, ok := (*db)[timestamp]; ok {
-		return nil, fmt.Errorf("ConflictError timestamp: %d", timestamp)
-		// MyError{fmt.Sprintf("ConflictError timestamp: %d", timestamp)}
-	}
-
 	order.Timestamp = timestamp
 	// insert
 	(*db)[timestamp] = *order
