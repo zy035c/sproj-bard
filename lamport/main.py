@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 import argparse
 import subprocess
-from myhttp import send_insert, send_get
+from myhttp import send_insert, send_get, concur_send
 
 port_list = []
 pid_list = []
@@ -31,10 +31,11 @@ def terminal_interact():
         print("-----------------------------------")
         print("port_list: ", port_list)
         print("pid_list: ", pid_list)
-        print("1. type the port number to send a message to")
-        print("2. type the port number to receive a message from")
-        print("3. concurrently send a message to multiple ports")
-        print("4. type 'exit' to stop the program")
+        print("[1] choose a port number to send a message to")
+        print("[2] choose a port number to read most recent message from")
+        print("[3] concurrently send a message to multiple ports")
+        print("[4] get messages from all ports")
+        print("[exit] stop the program")
         print("-----------------------------------")
 
         command = input("Enter command: ")
@@ -57,19 +58,37 @@ def terminal_interact():
                 send_get(port, pid)
             else:
                 print("port not found")
-        # elif command == "3":
-        #     port = input("Enter port numbers (separated by space): ")
-        #     port = port.split(" ")
-        #     for p in port:
-        #         if p not in port_list:
-        #             print("port not found")
-        #             break
-        #     else:
-        #         message = input("Enter message: ")
-        #         for p in port:
-        #             subprocess.call(["go", "run", "client.go", "-port="+p, "-m="+message])
+        elif command == "3":
+            # loop: type port number and message and store in a dict
+            # until "done" is typed
+            # then call concur_send
+            msgs = {}
+            while True:
+                port = input("([done] to finish input) Enter port number: ")
+                if port == "done":
+                    break
+                if port not in port_list:
+                    print("port not found")
+                    continue
+                message = input("Enter message: ")
+                pid = pid_list[port_list.index(port)]
+                msgs[port] = (message, pid)
+
+            if len(msgs) > 0:
+                concur_send(
+                    list(msgs.keys()),
+                    [msg[0] for msg in msgs.values()],
+                    [msg[1] for msg in msgs.values()]
+                )
+
+            print(f"Successfully sent {len(msgs)} messages")
+        elif command == "4":
+            # get from all ports
+            for port in port_list:
+                pid = pid_list[port_list.index(port)]
+                send_get(port, pid)
         else:
-            print("invalid command")
+            print("Invalid command")
 
         print("\n")
     pass

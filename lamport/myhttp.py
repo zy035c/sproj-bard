@@ -1,4 +1,6 @@
 import requests
+import aiohttp
+import asyncio
 
 
 def send_insert(port, text, proc_id):
@@ -45,3 +47,34 @@ def send_get(port, proc_id):
     # parse and print the response
     print("-> Get Response: ", resp.json())
     pass
+
+def concur_send(ports, message_list, proc_ids):
+    """
+        use asyncio and aiohttp to concurrently send messages to multiple ports
+    """
+
+    tasks = []
+    # create a list of tasks
+    for msg, port, proc_id in zip(message_list, ports, proc_ids):
+
+        async def post_task(proc_id_, port_, msg_):
+
+            url = "http://localhost:" + str(port_) + "/insert-data"
+            data = {
+                "req-type": "insert",
+                "proc-id": proc_id_,
+                "order": {
+                    "product_name": msg_,
+                    "timestamp": 1  # arbitrary
+                }
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=data) as response:
+                    return await response.text()
+
+        tasks.append(post_task(proc_id, port, msg))
+        print(f"-> Gathered a task for port {port}")
+
+    async def main():
+        await asyncio.gather(*tasks)
+    asyncio.run(main())
