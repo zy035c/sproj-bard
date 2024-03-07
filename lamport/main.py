@@ -1,5 +1,5 @@
 """
-This is the main file for the lamport clock
+This is the main file for the lamport clock project
 
 example: python main.py -p 9090 9091 9092
 """
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     port_list = args.port
 
     print("port_list: ", port_list)
-    
+
     # will start n golang server processes with the given port numbers
     # the command to start a server is go run server.go -port=9090 -ps=8000,9000,10000
     # where 9090 is the port number of the server, and 8000,9000,10000 are the port numbers of the other servers

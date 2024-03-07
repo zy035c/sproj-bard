@@ -27,13 +27,6 @@ import (
 // example: go run server.go -port=9090 -ps=8000,9000,10000
 
 func main() {
-	/**
-		Here's how the algorithm works:
-
-	    Each process maintains a logical clock, and whenever it performs a local event, its logical clock is incremented.
-	    When a process sends a message, it attaches its logical clock value to the message. Upon receiving the message, the recipient process updates its own logical clock to be greater than the timestamp in the received message.
-	    If two events have the same timestamp, the tie is broken by comparing process identifiers.
-	*/
 	port := flag.Int("port", 8080, "port number")
 	ps := flag.String("ps", "", "list of port numbers of other processes")
 	flag.Parse()
@@ -195,23 +188,32 @@ func RcvMsg(c *gin.Context) {
 	}
 
 	order := reqBody.Order
-	fmt.Println("Received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp)
+	local_timestamp := timestamp.GetTimestamp(c)
+	fmt.Println("Received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp,
+		"local_timestamp: ", local_timestamp)
 
 	/**
 	 *  Lamport's logical clock algorithm
-	 */
-	local_timestamp := timestamp.GetTimestamp(c)
+		Here's how the algorithm works:
+
+	    Each process maintains a logical clock, and whenever it performs a local event, its logical clock is incremented.
+	    When a process sends a message, it attaches its logical clock value to the message. Upon receiving the message,
+		the recipient process updates its own logical clock to be greater than the timestamp in the received message.
+	    If two events have the same timestamp, the tie is broken by comparing process identifiers.
+	*/
 	if order.Timestamp == local_timestamp {
-		println("Tie: look at procId")
+		fmt.Println("Tie: look at procId", reqBody.ProcID, " ", os.Getpid())
 		if reqBody.ProcID > os.Getpid() {
 
+			fmt.Println("Tie broken")
 			task := mypq.Item{Value: func() {
-				controller.InsertOrUpdate(c, &order, timestamp.GetTimestamp(c))
+				controller.InsertOrUpdate(c, &order, order.Timestamp)
 			}}
 			task.SetPriority(order.Timestamp)
 			taskQueue := GetTaskQueue(c)
 
 			heap.Push(taskQueue, &task)
+			fmt.Println("Add task: update entry to", order)
 		}
 
 	} else if order.Timestamp > local_timestamp {
