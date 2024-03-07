@@ -25,7 +25,9 @@ def send_insert(port, text, proc_id):
             "timestamp": 1
         }
     }
+    print("-> Insert Post Json: ", data)
     resp = requests.post(url, json=data)
+    print("-> Insert Response: ", resp.json())
     pass
 
 
@@ -41,5 +43,5 @@ def send_get(port, proc_id):
     }
     resp = requests.get(url, json=data)
     # parse and print the response
-    print(resp.text)
+    print("-> Get Response: ", resp.json())
     pass

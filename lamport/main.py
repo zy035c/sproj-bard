@@ -28,12 +28,14 @@ def terminal_interact():
     # the user can type "exit" to stop the program
     """
     while True:
+        print("-----------------------------------")
         print("port_list: ", port_list)
         print("pid_list: ", pid_list)
         print("1. type the port number to send a message to")
         print("2. type the port number to receive a message from")
         print("3. concurrently send a message to multiple ports")
         print("4. type 'exit' to stop the program")
+        print("-----------------------------------")
 
         command = input("Enter command: ")
         if command == "exit":
@@ -68,6 +70,8 @@ def terminal_interact():
         #             subprocess.call(["go", "run", "client.go", "-port="+p, "-m="+message])
         else:
             print("invalid command")
+
+        print("\n")
     pass
 
 if __name__ == "__main__":

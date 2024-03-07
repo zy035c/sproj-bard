@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -81,8 +80,9 @@ func main() {
 				// convert the value to a function and execute it
 				fmt.Println("Will execute item. Current timestamp", cur_timestamp, "; item's timestamp", item.GetPriority())
 				item.Execute()
+			} else {
+				heap.Push(taskQueue, &item)
 			}
-			heap.Push(taskQueue, &item)
 		}
 	}()
 
@@ -131,7 +131,9 @@ func GetOrder(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Fetched data for: ", *order)
+	fmt.Println("Fetched data for: ", os.Getpid(), " Data: ", *order)
+
+	c.JSON(200, gin.H{"order": order})
 }
 
 func GetProcID(c *gin.Context) {
@@ -181,17 +183,19 @@ func InsertData(c *gin.Context) {
 func RcvMsg(c *gin.Context) {
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
+		fmt.Println(err)
 		c.JSON(400, gin.H{"error": "invalid sync msg"})
 		return
 	}
 
 	if reqBody.ReqType != "sync" {
+		fmt.Println("Invalid request type")
 		c.JSON(200, gin.H{"error": "invalid request type"})
 		return
 	}
 
 	order := reqBody.Order
-	println("I received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp)
+	fmt.Println("Received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp)
 
 	/**
 	 *  Lamport's logical clock algorithm
@@ -232,27 +236,27 @@ func RcvMsg(c *gin.Context) {
 func SendSyncMsg(ord *models.Order, portList []string) {
 	// send http request to all the ther process
 	// and update the local timestamp
+	requestJSON := struct {
+		ReqType string       `json:"req-type"`
+		ProcID  int          `json:"proc-id"`
+		Order   models.Order `json:"order"`
+	}{
+		ReqType: "sync",
+		ProcID:  os.Getpid(),
+		Order:   *ord,
+	}
 
-	orderJSON, _ := json.Marshal(*ord)
-
-	requestBody, _ := json.Marshal(
-		map[string][]byte{
-			"ReqType": []byte("sync"),
-			"ProcID":  []byte(strconv.Itoa(os.Getpid())),
-			"Order":   orderJSON,
-		},
-	)
+	requestBody, _ := json.Marshal(requestJSON)
 
 	for _, port := range portList {
-		// send request to the server
-
+		// post sync to the server
 		_, err := http.Post(
 			fmt.Sprintf("http://localhost:%s/sync", port),
 			"application/json",
 			bytes.NewBuffer(requestBody),
 		)
 		if err != nil {
-			fmt.Println("Error: ", err)
+			fmt.Println("Error sending for port ", port, ": ", err)
 			continue
 		}
 	}
