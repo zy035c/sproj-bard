@@ -52,8 +52,8 @@ func main() {
 	server.Use(func(c *gin.Context) {
 
 		c.Set("lamport-counter", &lamportCounter)
-		// db connection ...
-		c.Set("db_conn", nil)
+
+		c.Set("db_conn", nil) // not in use
 
 		/* As of now, we don't store data in db. Instead, we use a hashmap. */
 		c.Set("fake_db", &fake_db)
@@ -174,7 +174,7 @@ func InsertData(c *gin.Context) {
 		fmt.Println("Send sync msg ok.")
 	}
 
-	fmt.Println("Add Task: Will insert to db. Priority:", timestamp.GetTimestamp(c))
+	fmt.Println("[Queue Task] Will insert to db. Priority:", timestamp.GetTimestamp(c))
 	taskQueue := GetTaskQueue(c)
 	heap.Push(taskQueue, &mypq.Item{Value: task, Priority: timestamp.GetTimestamp(c)})
 
@@ -217,15 +217,14 @@ func RcvMsg(c *gin.Context) {
 		fmt.Println("Tie: look at procId", reqBody.ProcID, " ", os.Getpid())
 		if reqBody.ProcID > os.Getpid() {
 
-			fmt.Println("Tie broken")
-			task := mypq.Item{Value: func() {
+			fmt.Println("Greater incoming pid, will accept entry")
+			task := func() {
 				controller.InsertOrUpdate(c, &order, order.Timestamp)
-			}}
-			task.SetPriority(order.Timestamp)
+			}
 			taskQueue := GetTaskQueue(c)
+			heap.Push(taskQueue, &mypq.Item{Value: task, Priority: order.Timestamp})
 
-			heap.Push(taskQueue, &task)
-			fmt.Println("Add Task: update entry to", order)
+			fmt.Println("[Queue Task] Update entry to", order, "Priority:", order.Timestamp)
 		}
 
 	} else if order.Timestamp > local_timestamp {
@@ -278,7 +277,6 @@ func SendSyncMsg(ord *models.Order, portList []string) {
 
 func computeOrDelay() {
 	// simulate a time consuming computation
-
 	time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 	// sleep for a random time between 0 and 2000 ms
 }
