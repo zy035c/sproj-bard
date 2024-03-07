@@ -241,7 +241,7 @@ func RcvMsg(c *gin.Context) {
 	} else {
 		// if the timestamp is less than or equal to the local timestamp
 		// then we don't need to update the db
-		println("Received an outdated sync msg", "ts=", order.Timestamp, "local ts=", local_timestamp)
+		println("Outdated sync msg, abort.", "ts=", order.Timestamp, "local ts=", local_timestamp)
 	}
 
 	c.JSON(200, gin.H{"status": "ok"})
