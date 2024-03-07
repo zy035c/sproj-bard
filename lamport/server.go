@@ -121,7 +121,7 @@ func GetOrder(c *gin.Context) {
 	// 	return
 	// }
 
-	fmt.Println("Will fetch the db for this proc:", os.Getpid(), "at timestamp:", timestamp.GetTimestamp(c))
+	fmt.Println("Will fetch the db for this proc:", os.Getpid(), "ts=", timestamp.GetTimestamp(c))
 	order, err := controller.GetMostRecent(c, timestamp.GetTimestamp(c))
 	fmt.Println(err)
 	if err != nil {
@@ -168,7 +168,7 @@ func InsertData(c *gin.Context) {
 			fmt.Println("Error: ", err)
 			return
 		}
-		fmt.Println("Insertion ok. Now timestamp:", timestamp.GetTimestamp(c))
+		fmt.Println("Insertion ok. Current ts=", timestamp.GetTimestamp(c))
 		reqBody.Order.Timestamp = timestamp.GetTimestamp(c) // ?
 		SendSyncMsg(&reqBody.Order, GetPortList(c))
 		fmt.Println("Send sync msg ok.")
@@ -201,8 +201,8 @@ func RcvMsg(c *gin.Context) {
 
 	order := reqBody.Order
 	local_timestamp := timestamp.GetTimestamp(c)
-	fmt.Println("Received a sync msg from proc: ", reqBody.ProcID, " timestamp: ", order.Timestamp,
-		"local_timestamp: ", local_timestamp)
+	fmt.Println("Received sync msg from proc: ", reqBody.ProcID, " ts=", order.Timestamp,
+		"local ts=", local_timestamp)
 
 	/**
 	 *  Lamport's logical clock algorithm
@@ -221,6 +221,7 @@ func RcvMsg(c *gin.Context) {
 			task := func() {
 				controller.InsertOrUpdate(c, &order, order.Timestamp)
 			}
+
 			taskQueue := GetTaskQueue(c)
 			heap.Push(taskQueue, &mypq.Item{Value: task, Priority: order.Timestamp})
 
@@ -230,7 +231,7 @@ func RcvMsg(c *gin.Context) {
 	} else if order.Timestamp > local_timestamp {
 
 		task := func() {
-			println("I will update my local timestamp to: ", order.Timestamp)
+			println("I will update my local ts to: ", order.Timestamp)
 			timestamp.SetTimestamp(c, order.Timestamp) // ?
 			controller.InsertOrUpdate(c, &order, order.Timestamp)
 		}
@@ -240,7 +241,7 @@ func RcvMsg(c *gin.Context) {
 	} else {
 		// if the timestamp is less than or equal to the local timestamp
 		// then we don't need to update the db
-		println("Received a old sync msg", order.Timestamp, local_timestamp)
+		println("Received an outdated sync msg", "ts=", order.Timestamp, "local ts=", local_timestamp)
 	}
 
 	c.JSON(200, gin.H{"status": "ok"})
