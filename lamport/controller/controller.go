@@ -23,7 +23,7 @@ func InsertOrUpdate(c *gin.Context, order *models.Order, timestamp uint64) (*mod
 	// insert
 	(*db)[timestamp] = *order
 
-	fmt.Println("Inserted: ", *order)
+	fmt.Println("[db] Inserted: ", *order)
 
 	return order, nil
 
@@ -39,11 +39,21 @@ func InsertOrUpdate(c *gin.Context, order *models.Order, timestamp uint64) (*mod
 }
 
 func GetMostRecent(c *gin.Context, timestamp uint64) (*models.Order, error) {
-	// get by current pid and given timestamp
+	// get by given timestamp
 	// return the struct
 	db := make_fake_db(c)
 	if order, ok := (*db)[timestamp]; ok {
 		return &order, nil
 	}
 	return nil, fmt.Errorf("NotFoundError timestamp: %d", timestamp)
+}
+
+func GetLastProcID(c *gin.Context, timestamp uint64) int {
+	// get the last proc id
+	// return the id
+	db := make_fake_db(c)
+	if order, ok := (*db)[timestamp]; ok {
+		return order.ProcID
+	}
+	return -1
 }

@@ -19,7 +19,8 @@ import (
 
 type Order struct {
 	ProductName string `json:"product_name" binding:"required"`
-	Timestamp uint64 `gorm:"not null" json:"timestamp" binding:"required"`
+	Timestamp   uint64 `gorm:"not null" json:"timestamp" binding:"required"`
+	ProcID      int    `gorm:"not null" json:"proc_id" binding:"required"`
 }
 
 func (o *Order) TableName() string {

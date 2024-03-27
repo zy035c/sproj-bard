@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"lamport/mypq"
@@ -41,13 +40,10 @@ func main() {
 	}
 	server := gin.Default()
 
-	// server.MaxHandlers = 1
 	/* init lamport counter */
 	var lamportCounter uint64 = 0
 	fake_db := make(map[uint64]models.Order)
-	taskQueue := &mypq.PriorityQueue{}
-
-	routerLock := sync.Mutex{}
+	taskQueue := mypq.NewPriorityQueue()
 
 	server.Use(func(c *gin.Context) {
 
@@ -62,26 +58,11 @@ func main() {
 
 		c.Set("port_list", psList)
 
-		c.Set("router_lock", &routerLock)
 		// c.Next()
 	})
 
 	go func() {
-		for {
-			if taskQueue.Len() == 0 {
-				continue
-			}
-			item := heap.Pop(taskQueue).(mypq.Item)
-			cur_timestamp := atomic.LoadUint64(&lamportCounter)
-
-			if item.GetPriority() == cur_timestamp || item.GetPriority() == cur_timestamp+1 {
-				// convert the value to a function and execute it
-				fmt.Println("Will execute item. Current timestamp", cur_timestamp, "; item's timestamp", item.GetPriority())
-				item.Execute()
-			} else {
-				heap.Push(taskQueue, &item)
-			}
-		}
+		taskQueue.LoopAndPoll(&lamportCounter)
 	}()
 
 	server.GET("/get-data", GetOrder)
@@ -100,9 +81,8 @@ func main() {
 
 type RequestBody struct {
 	ID      uint64 `json:"id"`
-	ProcID  int    `json:"proc-id"`
 	Port    int    `json:"port"`
-	ReqType string `json:"req-type" binding:"required"`
+	ReqType string `json:"req_type" binding:"required"`
 
 	Order models.Order `json:"order"`
 }
@@ -113,15 +93,7 @@ func GetOrder(c *gin.Context) {
 	// parse request by bind to a struct
 	// return the struct
 
-	// c.Query("proc-id")
-
-	// pid := os.Getpid()
-	// if reqBody.ProcID != pid {
-	// 	println("I received a request that is not for this proc id")
-	// 	return
-	// }
-
-	fmt.Println("Will fetch the db for this proc:", os.Getpid(), "ts=", timestamp.GetTimestamp(c))
+	fmt.Println("[Router] Will fetch the db for this proc:", os.Getpid(), "ts=", timestamp.GetTimestamp(c))
 	order, err := controller.GetMostRecent(c, timestamp.GetTimestamp(c))
 	fmt.Println(err)
 	if err != nil {
@@ -129,7 +101,7 @@ func GetOrder(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Fetched data for: ", os.Getpid(), " Data: ", *order)
+	fmt.Println("[Router] Fetched data", order)
 
 	c.JSON(200, gin.H{"order": order})
 }
@@ -144,9 +116,6 @@ func InsertData(c *gin.Context) {
 	// insert (or said update) data
 	// parse request by bind to a struct
 	// return the struct
-	lock := GetRouterLock(c)
-	lock.Lock()
-	defer lock.Unlock()
 
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
@@ -160,21 +129,23 @@ func InsertData(c *gin.Context) {
 		return
 	}
 
+	computeOrDelay()
 	task := func() {
 		computeOrDelay()
 
+		reqBody.Order.ProcID = os.Getpid()
 		_, err := controller.InsertOrUpdate(c, &reqBody.Order, timestamp.IncrementTimestamp(c))
 		if err != nil {
 			fmt.Println("Error: ", err)
 			return
 		}
-		fmt.Println("Insertion ok. Current ts=", timestamp.GetTimestamp(c))
+		fmt.Println("[Queue Task] Insertion ok. Current ts=", timestamp.GetTimestamp(c))
 		reqBody.Order.Timestamp = timestamp.GetTimestamp(c) // ?
 		SendSyncMsg(&reqBody.Order, GetPortList(c))
-		fmt.Println("Send sync msg ok.")
+		fmt.Println("[Queue Task] Send sync msg ok.")
 	}
 
-	fmt.Println("[Queue Task] Will insert to db. Priority:", timestamp.GetTimestamp(c))
+	// fmt.Println("[Queue Task] Will insert to db. Priority:", timestamp.GetTimestamp(c))
 	taskQueue := GetTaskQueue(c)
 	heap.Push(taskQueue, &mypq.Item{Value: task, Priority: timestamp.GetTimestamp(c)})
 
@@ -182,10 +153,6 @@ func InsertData(c *gin.Context) {
 }
 
 func RcvMsg(c *gin.Context) {
-	lock := GetRouterLock(c)
-	lock.Lock()
-	defer lock.Unlock()
-
 	var reqBody RequestBody
 	if err := c.Bind(&reqBody); err != nil {
 		fmt.Println(err)
@@ -200,9 +167,8 @@ func RcvMsg(c *gin.Context) {
 	}
 
 	order := reqBody.Order
-	local_timestamp := timestamp.GetTimestamp(c)
-	fmt.Println("Received sync msg from proc: ", reqBody.ProcID, " ts=", order.Timestamp,
-		"local ts=", local_timestamp)
+	fmt.Println("[Router] Received sync msg from proc: ", order.ProcID, " ts=", order.Timestamp)
+	computeOrDelay()
 
 	/**
 	 *  Lamport's logical clock algorithm
@@ -213,36 +179,37 @@ func RcvMsg(c *gin.Context) {
 		the recipient process updates its own logical clock to be greater than the timestamp in the received message.
 	    If two events have the same timestamp, the tie is broken by comparing process identifiers.
 	*/
-	if order.Timestamp == local_timestamp {
-		fmt.Println("Tie: look at procId", reqBody.ProcID, " ", os.Getpid())
-		if reqBody.ProcID > os.Getpid() {
+	task := func() {
+		computeOrDelay()
 
-			fmt.Println("Greater incoming pid, will accept entry")
-			task := func() {
+		order := reqBody.Order
+		cur_timestamp := timestamp.GetTimestamp(c)
+
+		if order.Timestamp == cur_timestamp {
+			fmt.Println("[Queue Task] Tie at ts.")
+			fmt.Println("[Queue Task] Compare proc id. Incoming pid:", order.ProcID, "Local pid:", controller.GetLastProcID(c, cur_timestamp))
+			if order.ProcID > controller.GetLastProcID(c, cur_timestamp) {
+				fmt.Println("Greater incoming pid, will accept entry")
 				controller.InsertOrUpdate(c, &order, order.Timestamp)
+				fmt.Println("[Queue Task] Update entry to", order, "Priority:", order.Timestamp)
+			} else {
+				fmt.Println("[Queue Task] Outdated sync msg and less pid, abort.", "ts=", order.Timestamp, "local ts=", cur_timestamp)
 			}
 
-			taskQueue := GetTaskQueue(c)
-			heap.Push(taskQueue, &mypq.Item{Value: task, Priority: order.Timestamp})
+		} else if order.Timestamp > cur_timestamp {
 
-			fmt.Println("[Queue Task] Update entry to", order, "Priority:", order.Timestamp)
-		}
-
-	} else if order.Timestamp > local_timestamp {
-
-		task := func() {
-			println("I will update my local ts to: ", order.Timestamp)
-			timestamp.SetTimestamp(c, order.Timestamp) // ?
+			fmt.Println("[Queue Task] I will update my local ts", cur_timestamp, "to: ", order.Timestamp)
+			timestamp.SetTimestamp(c, order.Timestamp) // should only increment by 1
 			controller.InsertOrUpdate(c, &order, order.Timestamp)
-		}
 
-		taskQueue := GetTaskQueue(c)
-		heap.Push(taskQueue, &mypq.Item{Value: task, Priority: order.Timestamp})
-	} else {
-		// if the timestamp is less than or equal to the local timestamp
-		// then we don't need to update the db
-		println("Outdated sync msg, abort.", "ts=", order.Timestamp, "local ts=", local_timestamp)
+		} else {
+			// if the timestamp is less than or equal to the local timestamp
+			// then we don't need to update the db
+			fmt.Println("[Queue Task] Outdated sync msg, abort.", "ts=", order.Timestamp, "local ts=", cur_timestamp)
+		}
 	}
+
+	heap.Push(GetTaskQueue(c), &mypq.Item{Value: task, Priority: order.Timestamp})
 
 	c.JSON(200, gin.H{"status": "ok"})
 }
@@ -251,12 +218,10 @@ func SendSyncMsg(ord *models.Order, portList []string) {
 	// send http request to all the ther process
 	// and update the local timestamp
 	requestJSON := struct {
-		ReqType string       `json:"req-type"`
-		ProcID  int          `json:"proc-id"`
+		ReqType string       `json:"req_type"`
 		Order   models.Order `json:"order"`
 	}{
 		ReqType: "sync",
-		ProcID:  os.Getpid(),
 		Order:   *ord,
 	}
 
@@ -292,7 +257,7 @@ func GetPortList(c *gin.Context) []string {
 	return portList
 }
 
-func GetRouterLock(c *gin.Context) *sync.Mutex { 
+func GetRouterLock(c *gin.Context) *sync.Mutex {
 	lock := c.MustGet("router_lock").(*sync.Mutex)
 	return lock
 }

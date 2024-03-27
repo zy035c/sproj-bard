@@ -8,11 +8,11 @@ def send_insert(port, text, proc_id):
         send POST request to http://localhost:port/insert-data
         with following json:
         {
-            "req-type": "insert",
-            "proc-id": 1286,
+            "req_type": "insert",
             "order": {
                 "product_name": "Hello World 2",
-                "timestamp": 1
+                "timestamp": 1,
+                "proc_id": 1286
             }
         }
 
@@ -20,11 +20,11 @@ def send_insert(port, text, proc_id):
     """
     url = "http://localhost:" + str(port) + "/insert-data"
     data = {
-        "req-type": "insert",
-        "proc-id": proc_id,
+        "req_type": "insert",
         "order": {
             "product_name": text,
-            "timestamp": 1
+            "timestamp": 1,
+            "proc_id": proc_id
         }
     }
     print("-> Insert Post Json: ", data)
@@ -40,8 +40,7 @@ def send_get(port, proc_id):
     """
     url = "http://localhost:" + str(port) + "/get-data"
     data = {
-        "req-type": "get",
-        "proc-id": proc_id
+        "req_type": "get",
     }
     resp = requests.get(url, json=data)
     # parse and print the response
@@ -61,11 +60,11 @@ def concur_send(ports, message_list, proc_ids):
 
             url = "http://localhost:" + str(port_) + "/insert-data"
             data = {
-                "req-type": "insert",
-                "proc-id": proc_id_,
+                "req_type": "insert",
                 "order": {
                     "product_name": msg_,
-                    "timestamp": 1  # arbitrary
+                    "timestamp": 1,  # arbitrary
+                    "proc_id": 1  # arbitrary
                 }
             }
             async with aiohttp.ClientSession() as session:
