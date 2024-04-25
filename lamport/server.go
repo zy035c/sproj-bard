@@ -27,17 +27,40 @@ import (
 // example: go run server.go -port=9090 -ps=8000,9000,10000
 
 func main() {
-	port := flag.Int("port", 8080, "port number")
-	ps := flag.String("ps", "", "list of port numbers of other processes")
-	flag.Parse()
 
-	var psList []string
-	if *ps != "" {
-		psList = strings.Split(*ps, ",")
-		for _, p := range psList {
+	var port int
+	var ps []string
+
+	// Read port
+	if gPort := os.Getenv("GPORT"); gPort != "" {
+		fmt.Println("Using GPORT environment variable:", gPort)
+		port = parseIntOrPanic(gPort)
+	} else {
+		// if no env var, read from cmd option
+		portNum := flag.Int("port", 8080, "port number")
+		flag.Parse()
+		port = *portNum
+	}
+
+	// Read port list
+	if gPs := os.Getenv("GPLIST"); gPs != "" {
+		fmt.Println("Using GPLIST environment variable:", gPs)
+		ps = strings.Split(gPs, ",")
+		for _, p := range ps {
 			fmt.Println("Other process port:", p)
 		}
+	} else {
+		// if no env var, read from cmd option
+		ps_ := flag.String("ps", "", "list of port numbers of other processes")
+		flag.Parse()
+		if *ps_ != "" {
+			ps = strings.Split(*ps_, ",")
+			for _, p := range ps {
+				fmt.Println("Other process port:", p)
+			}
+		}
 	}
+
 	server := gin.Default()
 
 	/* init lamport counter */
@@ -56,7 +79,7 @@ func main() {
 
 		c.Set("task_queue", taskQueue)
 
-		c.Set("port_list", psList)
+		c.Set("port_list", ps)
 
 		// c.Next()
 	})
@@ -71,12 +94,12 @@ func main() {
 	server.POST("/sync", RcvMsg)
 
 	server.GET("/get-port", func(c *gin.Context) {
-		c.JSON(200, gin.H{"port": *port})
+		c.JSON(200, gin.H{"port": port})
 	})
 
 	println("-- My proc id: ", os.Getpid())
 
-	server.Run(fmt.Sprintf(":%d", *port))
+	server.Run(fmt.Sprintf(":%d", port))
 }
 
 type RequestBody struct {

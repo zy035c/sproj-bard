@@ -1,5 +1,7 @@
 package main
 
+import "strconv"
+
 type MyError struct {
 	message string
 }
@@ -7,4 +9,12 @@ type MyError struct {
 // custom error
 func (err MyError) Error() string {
 	return err.message
+}
+
+func parseIntOrPanic(s string) int {
+	num, err := strconv.Atoi(s)
+	if err != nil {
+		panic(err)
+	}
+	return num
 }
