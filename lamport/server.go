@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"container/heap"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"lamport/controller"
-	"lamport/ft_handshake"
+	FaultTolerantHandshake "lamport/fth"
 	"lamport/models"
 	"math/rand"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -28,84 +26,84 @@ import (
 // example: go run server.go -port=9090 -ps=8000,9000,10000
 
 func main() {
-	ft_handshake.Main()
+	FaultTolerantHandshake.Main()
 }
 
-func StartServer() {
-	var port int
-	var ps []string
+// func StartServer() {
+// 	var port int
+// 	var ps []string
 
-	// Read port
-	if gPort := os.Getenv("GPORT"); gPort != "" {
-		fmt.Println("Using GPORT environment variable:", gPort)
-		port = parseIntOrPanic(gPort)
-	} else {
-		// if no env var, read from cmd option
-		portNum := flag.Int("port", 8080, "port number")
-		flag.Parse()
-		port = *portNum
-	}
+// 	// Read port
+// 	if gPort := os.Getenv("GPORT"); gPort != "" {
+// 		fmt.Println("Using GPORT environment variable:", gPort)
+// 		port = parseIntOrPanic(gPort)
+// 	} else {
+// 		// if no env var, read from cmd option
+// 		portNum := flag.Int("port", 8080, "port number")
+// 		flag.Parse()
+// 		port = *portNum
+// 	}
 
-	// Read port list
-	if gPs := os.Getenv("GPLIST"); gPs != "" {
-		fmt.Println("Using GPLIST environment variable:", gPs)
-		ps = strings.Split(gPs, ",")
-		for _, p := range ps {
-			fmt.Println("Other process port:", p)
-		}
-	} else {
-		// if no env var, read from cmd option
-		ps_ := flag.String("ps", "", "list of port numbers of other processes")
-		flag.Parse()
-		if *ps_ != "" {
-			ps = strings.Split(*ps_, ",")
-			for _, p := range ps {
-				fmt.Println("Other process port:", p)
-			}
-		}
-	}
+// 	// Read port list
+// 	if gPs := os.Getenv("GPLIST"); gPs != "" {
+// 		fmt.Println("Using GPLIST environment variable:", gPs)
+// 		ps = strings.Split(gPs, ",")
+// 		for _, p := range ps {
+// 			fmt.Println("Other process port:", p)
+// 		}
+// 	} else {
+// 		// if no env var, read from cmd option
+// 		ps_ := flag.String("ps", "", "list of port numbers of other processes")
+// 		flag.Parse()
+// 		if *ps_ != "" {
+// 			ps = strings.Split(*ps_, ",")
+// 			for _, p := range ps {
+// 				fmt.Println("Other process port:", p)
+// 			}
+// 		}
+// 	}
 
-	server := gin.Default()
+// 	server := gin.Default()
 
-	/* init lamport counter */
-	var lamportCounter uint64 = 0
-	fake_db := make(map[uint64]models.Order)
-	taskQueue := mypq.NewPriorityQueue()
+// 	/* init lamport counter */
+// 	var lamportCounter uint64 = 0
+// 	fake_db := make(map[uint64]models.Order)
+// 	taskQueue := mypq.NewPriorityQueue()
 
-	server.Use(func(c *gin.Context) {
+// 	server.Use(func(c *gin.Context) {
 
-		c.Set("lamport-counter", &lamportCounter)
+// 		c.Set("lamport-counter", &lamportCounter)
 
-		c.Set("db_conn", nil) // not in use
+// 		c.Set("db_conn", nil) // not in use
 
-		/* As of now, we don't store data in db. Instead, we use a hashmap. */
-		c.Set("fake_db", &fake_db)
+// 		/* As of now, we don't store data in db. Instead, we use a hashmap. */
+// 		c.Set("fake_db", &fake_db)
 
-		c.Set("task_queue", taskQueue)
+// 		c.Set("task_queue", taskQueue)
 
-		c.Set("port_list", ps)
+// 		c.Set("port_list", ps)
 
-		// c.Next()
-	})
+// 		// c.Next()
+// 	})
 
-	go func() {
-		taskQueue.LoopAndPoll(&lamportCounter)
-	}()
+// 	go func() {
+// 		taskQueue.LoopAndPoll(&lamportCounter)
+// 	}()
 
-	server.GET("/get-data", GetOrder)
-	server.GET("/get-proc-id", GetProcID)
-	server.POST("/insert-data", InsertData)
-	server.POST("/sync", RcvMsg)
+// 	server.GET("/get-data", GetOrder)
+// 	server.GET("/get-proc-id", GetProcID)
+// 	server.POST("/insert-data", InsertData)
+// 	server.POST("/sync", RcvMsg)
 
-	server.GET("/get-port", func(c *gin.Context) {
-		c.JSON(200, gin.H{"port": port})
-	})
+// 	server.GET("/get-port", func(c *gin.Context) {
+// 		c.JSON(200, gin.H{"port": port})
+// 	})
 
-	println("-- My proc id: ", os.Getpid())
+// 	println("-- My proc id: ", os.Getpid())
 
-	server.Run(fmt.Sprintf(":%d", port))
+// 	server.Run(fmt.Sprintf(":%d", port))
 
-}
+// }
 
 type RequestBody struct {
 	ID      uint64 `json:"id"`
