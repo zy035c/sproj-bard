@@ -1,9 +1,11 @@
 FROM golang:latest
 
-WORKDIR /lamport
+WORKDIR /app
 
-COPY . .
+ADD lamport .
 
 RUN go build -o server .
 
 CMD ["./server"]
+
+EXPOSE 9000

@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"lamport/controller"
+	"lamport/ft_handshake"
 	"lamport/models"
 	"math/rand"
 	"net/http"
@@ -27,7 +28,10 @@ import (
 // example: go run server.go -port=9090 -ps=8000,9000,10000
 
 func main() {
+	ft_handshake.Main()
+}
 
+func StartServer() {
 	var port int
 	var ps []string
 
@@ -100,6 +104,7 @@ func main() {
 	println("-- My proc id: ", os.Getpid())
 
 	server.Run(fmt.Sprintf(":%d", port))
+
 }
 
 type RequestBody struct {
