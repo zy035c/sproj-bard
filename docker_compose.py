@@ -4,18 +4,17 @@ import docker
 
 
 current_dir = os.getcwd()
-tag = "golang-image"
 
 def create_container(image_name, addr, id, env_vars={}, client=docker.from_env()):
 
     container_name = f"container-{id + 1}".lower()
-    print(f"Creating container: {container_name}")
+    print(f"Creating container: {container_name}; Image name: {image_name}")
 
     print("Will set local addr to", addr)
     print("Will set env_vars to", env_vars)
 
     container = client.containers.run(
-        tag, detach=True, name=container_name, environment=env_vars
+        image=image_name, detach=True, name=container_name, environment=env_vars,
     )
 
     container.exec_run(f"ifconfig eth0 {addr}")
@@ -37,12 +36,12 @@ def create_cluster(image_name, numNode=20, maxNeighbor=5):
     client = docker.from_env()
     # network = client.networks.create("go_net")
 
-    dockerfile_path = os.path.join(current_dir, image_name)
-    image, build_logs = client.images.build(
-        path=current_dir,
-        dockerfile=dockerfile_path,
-        tag=tag,
-    )
+    # dockerfile_path = os.path.join(current_dir, image_name)
+    # image, build_logs = client.images.build(
+    #     path=current_dir,
+    #     dockerfile=dockerfile_path,
+    #     tag=tag,
+    # )
 
     for node in range(numNode):
         addr_list = [getLocalAddr(baseAddr, adj) for adj in graph[node]]
