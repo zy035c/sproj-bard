@@ -33,7 +33,7 @@ func New(
 }
 
 func (fth *FaultTolerantHandshake) Start() {
-
+	fmt.Println("[Start] step 1")
 step2:
 	cp := fth.chooseRandomNeighbor()
 	fth.sendOne(cp)

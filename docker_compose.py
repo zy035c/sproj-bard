@@ -7,7 +7,7 @@ current_dir = os.getcwd()
 
 def create_container(image_name, addr, id, env_vars={}, client=docker.from_env()):
 
-    container_name = f"container-{id + 1}".lower()
+    container_name = f"sproj-container-{id + 1}".lower()
     print(f"Creating container: {container_name}; Image name: {image_name}")
 
     print("Will set local addr to", addr)
@@ -15,6 +15,7 @@ def create_container(image_name, addr, id, env_vars={}, client=docker.from_env()
 
     container = client.containers.run(
         image=image_name, detach=True, name=container_name, environment=env_vars,
+        # host_config=client.create_host_config(network_mode='bridge'),
     )
 
     container.exec_run(f"ifconfig eth0 {addr}")
@@ -42,21 +43,25 @@ def create_cluster(image_name, numNode=20, maxNeighbor=5):
     #     dockerfile=dockerfile_path,
     #     tag=tag,
     # )
+    resp = client.login(username='calicoli', password='walpurgis401420', email='zy035c@gmail.com',
+                       registry='https://index.docker.io/v1/')
+
+    print("[Login Resp]", resp)
 
     for node in range(numNode):
         addr_list = [getLocalAddr(baseAddr, adj) for adj in graph[node]]
         addr_local = getLocalAddr(baseAddr, node)
 
-        create_container(
-            image_name=image_name,
-            addr=addr_local[:-5],
-            id=node,
-            env_vars={
-                'G_ADDR': addr_local,
-                'G_REMOTE_ADDR_LIST': addr_list,
-            },
-            client=client,
-        )
+        # create_container(
+        #     image_name=image_name,
+        #     addr=addr_local[:-5],
+        #     id=node,
+        #     env_vars={
+        #         'G_ADDR': addr_local,
+        #         'G_REMOTE_ADDR_LIST': ','.join(addr_list),
+        #     },
+        #     client=client,
+        # )
 
 
 def getLocalAddr(base_addr, node) -> str:

@@ -1,6 +1,7 @@
 import multiprocessing
 import random
 import threading
+from time import sleep
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -74,4 +75,12 @@ def plot_graph_structure(edges, n):
     plt.title("Undirected Graph")
     plt.ion()
     plt.show()
-    plt.pause(1)
+    # plt.pause(1)
+
+
+if __name__ == "__main__":
+    _, t = generate_graph(20, 3)
+    t.start()
+    print("im here!")
+    sleep(5)
+    t.join()

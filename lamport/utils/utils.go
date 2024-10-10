@@ -1,4 +1,4 @@
-package main
+package utils
 
 import "strconv"
 
@@ -11,10 +11,16 @@ func (err MyError) Error() string {
 	return err.message
 }
 
-func parseIntOrPanic(s string) int {
+func ParseIntOrPanic(s string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
 		panic(err)
 	}
 	return num
+}
+
+func SliceCpy[T any](src []T) []T {
+	cpy := make([]T, len(src))
+	copy(cpy, src)
+	return cpy
 }
