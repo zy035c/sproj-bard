@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"lamport/controller"
-	FaultTolerantHandshake "lamport/fth"
 	"lamport/models"
 	"math/rand"
 	"net/http"
@@ -26,7 +25,8 @@ import (
 // example: go run server.go -port=9090 -ps=8000,9000,10000
 
 func main() {
-	FaultTolerantHandshake.Main()
+	// FaultTolerantHandshake.Main()
+	timestamp.Main()
 }
 
 // func StartServer() {
