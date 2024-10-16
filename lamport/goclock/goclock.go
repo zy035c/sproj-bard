@@ -43,12 +43,12 @@ func SimulateA(factory *MachineFactory[string, int]) {
 		curId := rand.Intn(int(factory.NumNode))
 
 		factory.Machines[curId].LocalEvent(func(data string) string {
-			return fmt.Sprintf("%v-Round_%v", data, round)
+			return fmt.Sprintf("Round%v", round)
 		})
 
-		fmt.Printf("- Simulating: Local Event at Node %v, Round %v\n", curId, round)
+		fmt.Printf("- Simulating: Local Event at Node %v, Round%v\n", curId, round)
 
-		round += 1
+		round++
 		time.Sleep(time.Second * 2)
 	}
 }
