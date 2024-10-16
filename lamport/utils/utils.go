@@ -1,6 +1,10 @@
 package utils
 
-import "strconv"
+import (
+	"fmt"
+	"reflect"
+	"strconv"
+)
 
 type MyError struct {
 	message string
@@ -23,4 +27,13 @@ func SliceCpy[T any](src []T) []T {
 	cpy := make([]T, len(src))
 	copy(cpy, src)
 	return cpy
+}
+
+func ReflectConvert[T any](val reflect.Value) *T {
+	if res, ok := reflect.ValueOf(val).Interface().(T); ok {
+		fmt.Printf("Successfully casted")
+		return &res
+	} else {
+		return nil
+	}
 }

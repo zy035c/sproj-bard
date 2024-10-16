@@ -1,8 +1,18 @@
 package timestamp
 
+import "sync"
+
 type KeyValPair struct {
 	Key string
 	Val string
+}
+
+type VectorTsManager struct {
+	*TsManager[KeyValPair, []uint64, *VectorClock, *VectorLocalClock]
+}
+
+type LamportTsManager struct {
+	*TsManager[KeyValPair, int, *LamportClock, *LamportLocalClock]
 }
 
 func Main() {
@@ -12,39 +22,56 @@ func Main() {
 
 func testSimpleLamport() {
 
-	AddVersion := func(key string, value string, lc int, mngr *TsManager[KeyValPair, int, LamportClock]) {
+	AddVersion := func(key string, value string, lc int, mngr *LamportTsManager) {
 		mngr.Add(
-			Version[KeyValPair, int, LamportClock]{
+			Version[KeyValPair, int, *LamportClock]{
 				data: &KeyValPair{
 					Key: key,
 					Val: value,
 				},
-				timestamp: LamportClock{
+				timestamp: &LamportClock{
 					counter: lc,
 				},
 			})
 	}
 
-	mngr := TsManagerNew[KeyValPair, int, LamportClock](1024)
+	manager := &LamportTsManager{TsManagerNew[KeyValPair, int, *LamportClock, *LamportLocalClock](
+		1024, &LamportLocalClock{
+			&LamportClock{
+				counter: 0,
+			},
+			sync.Mutex{},
+		})}
 
-	AddVersion("Greeting", "Hello", 4, mngr)
-	AddVersion("Greeting", "Zdrazdvui", 2, mngr)
-	AddVersion("Greeting", "Nihao", 1, mngr)
+	AddVersion("Greeting", "Hello", 4, manager)
+	AddVersion("Greeting", "Zdrazdvui", 2, manager)
+	AddVersion("Greeting", "Nihao", 1, manager)
 
-	mngr.PrintVersionChain()
+	manager.PrintVersionChain()
 }
 
 func testSimpleVector() {
-	mngr := TsManagerNew[KeyValPair, []uint64, VectorClock](1024)
 
-	AddVersion := func(key string, value string, lc []uint64, mngr *TsManager[KeyValPair, []uint64, VectorClock]) {
+	mngr := &VectorTsManager{TsManagerNew[KeyValPair, []uint64, *VectorClock, *VectorLocalClock](
+		1024, &VectorLocalClock{
+			&VectorClock{
+				vector: []uint64{0, 0, 0, 0, 0},
+				idx:    2,
+				size:   5,
+			},
+			sync.Mutex{},
+			2,
+			5,
+		})}
+
+	AddVersion := func(key string, value string, lc []uint64, mngr *VectorTsManager) {
 		mngr.Add(
-			Version[KeyValPair, []uint64, VectorClock]{
+			Version[KeyValPair, []uint64, *VectorClock]{
 				data: &KeyValPair{
 					Key: key,
 					Val: value,
 				},
-				timestamp: VectorClock{
+				timestamp: &VectorClock{
 					vector: lc,
 					idx:    2,
 					size:   5,

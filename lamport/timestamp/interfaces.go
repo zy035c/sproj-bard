@@ -11,6 +11,8 @@ const (
 type DistributedClock[T any] interface {
 	DefaultTsCmp(DistributedClock[T]) TsOrder
 	Value() T
+	Increment()
+	Set(data T)
 }
 
 type LocalClock[T any] interface {

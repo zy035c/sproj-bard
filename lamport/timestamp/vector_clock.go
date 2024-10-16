@@ -6,17 +6,6 @@ import (
 	"sync"
 )
 
-// type DistributedClock[T any] interface {
-// 	DefaultTsCmp(DistributedClock[T]) TsOrder
-// 	Value() T
-// }
-
-// type LocalClock[T any] interface {
-// 	Forward()
-// 	Adjust(DistributedClock[T]) error
-// 	Snapshot() T
-// }
-
 type VectorClock struct {
 	vector []uint64
 	idx    uint32
@@ -54,7 +43,7 @@ func (clock VectorClock) DefaultTsCmp(other DistributedClock[[]uint64]) TsOrder 
 			n_bef++
 		}
 	}
-	fmt.Printf("n_aft %v n_bef %v\n", n_aft, n_bef)
+	// fmt.Printf("n_aft %v n_bef %v\n", n_aft, n_bef)
 	if n_bef != 0 && n_aft != 0 {
 		return CON
 	} else if n_bef == 0 && n_aft == 0 {
@@ -70,8 +59,20 @@ func (clock VectorClock) Value() []uint64 {
 	return utils.SliceCpy[uint64](clock.vector)
 }
 
+func (clock *VectorClock) Increment() {
+	clock.vector[clock.idx]++
+}
+
+func (clock *VectorClock) Set(data []uint64) {
+	clock.vector = data
+}
+
+/*
+--------------------------
+*/
+
 type VectorLocalClock struct {
-	clock VectorClock
+	clock DistributedClock[[]uint64]
 	mutex sync.Mutex
 	idx   uint32
 	size  uint32
@@ -83,7 +84,7 @@ func NewVectorLocalClock(sz uint32, idx uint32) (*VectorLocalClock, error) {
 		return nil, err
 	}
 	return &VectorLocalClock{
-		clock: *res,
+		clock: res,
 		size:  sz,
 		idx:   idx,
 	}, nil
@@ -92,22 +93,25 @@ func NewVectorLocalClock(sz uint32, idx uint32) (*VectorLocalClock, error) {
 func (vtc *VectorLocalClock) Forward() {
 	vtc.mutex.Lock()
 	defer vtc.mutex.Unlock()
-	vtc.clock.vector[vtc.idx]++
+	vtc.clock.Increment()
 }
 
-func (vtc *VectorLocalClock) Adjust(m VectorClock) error {
+func (vtc *VectorLocalClock) Adjust(m DistributedClock[[]uint64]) error {
 	vtc.mutex.Lock()
 	defer vtc.mutex.Unlock()
-	if m.size != vtc.size {
-		return fmt.Errorf("ts has a size of %d, local ts has size %d", m.size, vtc.size)
+	mlen := len(m.Value())
+	if mlen != int(vtc.size) {
+		return fmt.Errorf("ts has a size of %d, local ts has size %d", mlen, vtc.size)
 	}
 
-	for i, ts := range vtc.clock.vector {
-		if m.vector[i] > ts {
-			vtc.clock.vector[i] = m.vector[i]
+	vec := vtc.clock.Value()
+	for i, ts := range vec {
+		if m.Value()[i] > ts {
+			vec[i] = m.Value()[i]
 		}
 	}
-	vtc.clock.vector[vtc.idx]++
+	vtc.clock.Set(vec)
+	vtc.clock.Increment()
 	return nil
 }
 

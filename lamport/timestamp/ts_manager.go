@@ -1,30 +1,30 @@
 package timestamp
 
 import (
+	"fmt"
 	"lamport/utils"
 )
 
-type TsManager[T any, K any, U DistributedClock[K]] struct {
-	VerChain utils.LinkList[Version[T, K, U]]
+type TsManager[T any, K any, U DistributedClock[K], G LocalClock[K]] struct {
+	VerChain *utils.LinkList[Version[T, K, U]]
+	LocalClk G
 	size     uint32
-	// TsCmpFunc[T]
 }
 
-func TsManagerNew[T any, K any, U DistributedClock[K]](sz int) *TsManager[T, K, U] {
-	// var cmp TsCmpFunc[T]
-	// if ts_cmp_func == nil {
-	// 	cmp = defaultCmp
-	// } else {
-	// 	cmp = *ts_cmp_func
-	// }
-
-	return &TsManager[T, K, U]{
-		VerChain: *utils.NewLinkList[Version[T, K, U]](),
+func TsManagerNew[T any, K any, U DistributedClock[K], G LocalClock[K]](
+	sz int,
+	local_clock G,
+) *TsManager[T, K, U, G] {
+	return &TsManager[T, K, U, G]{
+		VerChain: utils.NewLinkList[Version[T, K, U]](),
 		size:     0,
+		LocalClk: local_clock,
 	}
 }
 
-func (tsm *TsManager[T, K, U]) Add(m Version[T, K, U]) {
+func (tsm *TsManager[T, K, U, G]) Add(m Version[T, K, U]) {
+
+	tsm.LocalClk.Adjust(m.timestamp)
 
 	tsm.VerChain.InsertBefore(&m,
 		func(v1, v2 *Version[T, K, U]) bool {
@@ -36,6 +36,7 @@ func (tsm *TsManager[T, K, U]) Add(m Version[T, K, U]) {
 	tsm.size++
 }
 
-func (tsm TsManager[T, K, U]) PrintVersionChain() {
+func (tsm TsManager[T, K, U, G]) PrintVersionChain() {
+	fmt.Printf("Current ts - %v\n", tsm.LocalClk.Snapshot())
 	tsm.VerChain.Traverse()
 }
