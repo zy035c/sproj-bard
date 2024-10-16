@@ -25,7 +25,7 @@ func testSimpleLamport() {
 	AddVersion := func(key string, value string, lc int, mngr *LamportTsManager) {
 		mngr.Add(
 			Version[KeyValPair, int, *LamportClock]{
-				data: &KeyValPair{
+				data: KeyValPair{
 					Key: key,
 					Val: value,
 				},
@@ -67,7 +67,7 @@ func testSimpleVector() {
 	AddVersion := func(key string, value string, lc []uint64, mngr *VectorTsManager) {
 		mngr.Add(
 			Version[KeyValPair, []uint64, *VectorClock]{
-				data: &KeyValPair{
+				data: KeyValPair{
 					Key: key,
 					Val: value,
 				},

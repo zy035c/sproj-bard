@@ -37,3 +37,7 @@ func ReflectConvert[T any](val reflect.Value) *T {
 		return nil
 	}
 }
+
+type Cloneable[T any] interface {
+	Clone() T
+}

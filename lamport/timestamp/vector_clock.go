@@ -67,12 +67,20 @@ func (clock *VectorClock) Set(data []uint64) {
 	clock.vector = data
 }
 
+func (clock *VectorClock) Clone() DistributedClock[[]uint64] {
+	return &VectorClock{
+		vector: clock.Value(),
+		size:   clock.size,
+		idx:    clock.idx,
+	}
+}
+
 /*
 --------------------------
 */
 
 type VectorLocalClock struct {
-	clock DistributedClock[[]uint64]
+	Clock DistributedClock[[]uint64]
 	mutex sync.Mutex
 	idx   uint32
 	size  uint32
@@ -84,7 +92,7 @@ func NewVectorLocalClock(sz uint32, idx uint32) (*VectorLocalClock, error) {
 		return nil, err
 	}
 	return &VectorLocalClock{
-		clock: res,
+		Clock: res,
 		size:  sz,
 		idx:   idx,
 	}, nil
@@ -93,7 +101,7 @@ func NewVectorLocalClock(sz uint32, idx uint32) (*VectorLocalClock, error) {
 func (vtc *VectorLocalClock) Forward() {
 	vtc.mutex.Lock()
 	defer vtc.mutex.Unlock()
-	vtc.clock.Increment()
+	vtc.Clock.Increment()
 }
 
 func (vtc *VectorLocalClock) Adjust(m DistributedClock[[]uint64]) error {
@@ -104,17 +112,23 @@ func (vtc *VectorLocalClock) Adjust(m DistributedClock[[]uint64]) error {
 		return fmt.Errorf("ts has a size of %d, local ts has size %d", mlen, vtc.size)
 	}
 
-	vec := vtc.clock.Value()
+	vec := vtc.Clock.Value()
 	for i, ts := range vec {
 		if m.Value()[i] > ts {
 			vec[i] = m.Value()[i]
 		}
 	}
-	vtc.clock.Set(vec)
-	vtc.clock.Increment()
+	vtc.Clock.Set(vec)
+	vtc.Clock.Increment()
 	return nil
 }
 
 func (vtc *VectorLocalClock) Snapshot() []uint64 {
-	return vtc.clock.Value()
+	return vtc.Clock.Value()
+}
+
+func (lc *VectorLocalClock) SnapshotTS() DistributedClock[[]uint64] {
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	return lc.Clock.Clone()
 }

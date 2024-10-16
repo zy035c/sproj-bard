@@ -13,10 +13,12 @@ type DistributedClock[T any] interface {
 	Value() T
 	Increment()
 	Set(data T)
+	Clone() DistributedClock[T]
 }
 
 type LocalClock[T any] interface {
 	Forward()
 	Adjust(DistributedClock[T]) error
 	Snapshot() T
+	SnapshotTS() DistributedClock[T]
 }

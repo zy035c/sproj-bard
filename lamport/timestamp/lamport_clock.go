@@ -36,29 +36,35 @@ func (clock *LamportClock) Set(data int) {
 	clock.counter = data
 }
 
+func (clock *LamportClock) Clone() DistributedClock[int] {
+	return &LamportClock{
+		counter: clock.Value(),
+	}
+}
+
 /*
 --------------------------
 */
 
 type LamportLocalClock struct {
-	clock DistributedClock[int]
+	Clock DistributedClock[int]
 	mutex sync.Mutex
 }
 
 // Increment the clock by 1 (local event).
 func (lc *LamportLocalClock) Forward() {
 	lc.mutex.Lock()
-	lc.clock.Increment()
+	lc.Clock.Increment()
 	lc.mutex.Unlock()
 }
 
 // Adjust compares the current clock value with the received one, and updates the current clock with the maximum of the two, incremented by 1 (message receive event).
 func (lc *LamportLocalClock) Adjust(received DistributedClock[int]) error {
 	lc.mutex.Lock()
-	if received.Value() > lc.clock.Value() {
-		lc.clock.Set(received.Value())
+	if received.Value() > lc.Clock.Value() {
+		lc.Clock.Set(received.Value())
 	}
-	lc.clock.Increment()
+	lc.Clock.Increment()
 	lc.mutex.Unlock()
 	return nil
 }
@@ -67,5 +73,11 @@ func (lc *LamportLocalClock) Adjust(received DistributedClock[int]) error {
 func (lc *LamportLocalClock) Snapshot() int {
 	lc.mutex.Lock()
 	defer lc.mutex.Unlock()
-	return lc.clock.Value()
+	return lc.Clock.Value()
+}
+
+func (lc *LamportLocalClock) SnapshotTS() DistributedClock[int] {
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	return lc.Clock.Clone()
 }
