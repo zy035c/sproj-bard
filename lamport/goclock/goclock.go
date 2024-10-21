@@ -18,11 +18,11 @@ func Main() {
 				Clock: &timestamp.LamportClock{},
 			}
 		},
-		Machines: make([]Machine[string, int], 0),
-		Channels: make([]chan Message[string, int], 0),
 	}
 
-	factory.StartAll()
+	if err := factory.StartAll(); err != nil {
+		fmt.Println(err)
+	}
 	SimulateA(&factory)
 }
 
@@ -33,11 +33,11 @@ func SimulateA(factory *MachineFactory[string, int]) {
 	for {
 
 		if round%5 == 0 {
-			fmt.Printf("----- Nodes -----\n")
+			fmt.Printf("----- Epoch %v -----\n", round)
 			for _, m := range factory.Machines {
 				m.PrintInfo()
 			}
-			fmt.Printf("----- Nodes -----\n")
+			fmt.Printf("----- Epoch %v End-----\n", round)
 		}
 
 		curId := rand.Intn(int(factory.NumNode))
@@ -46,7 +46,7 @@ func SimulateA(factory *MachineFactory[string, int]) {
 			return fmt.Sprintf("Round%v", round)
 		})
 
-		fmt.Printf("- Simulating: Local Event at Node %v, Round%v\n", curId, round)
+		fmt.Printf("- Simulating: Local Event at Machine%v, Round%v\n", curId, round)
 
 		round++
 		time.Sleep(time.Second * 2)

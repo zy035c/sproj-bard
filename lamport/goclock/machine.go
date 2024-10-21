@@ -65,23 +65,34 @@ func (m *MachineImpl[T, K, U, G]) Listen() {
 func (m *MachineImpl[T, K, U, G]) handleMsg(msg Message[T, K]) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.manager.Add(msg.(timestamp.Version[T, K, U]))
+	v := msg.(timestamp.Version[T, K, U])
+	fmt.Printf("+ Machine %v Receiving msg %v\n", m.id, v)
+	m.manager.Add(v)
 }
 
 func (m *MachineImpl[T, K, U, G]) Broadcast(msg Message[T, K]) {
-	for _, sendch := range m.send {
+	for i, sendch := range m.send {
 		sendch <- *msg.(utils.Cloneable[*timestamp.Version[T, K, ClockAbbr[K]]]).Clone()
+		chanId := i
+		if chanId >= int(m.id) {
+			chanId++
+		}
+		fmt.Printf("+ Machine %v Broadcasting msg to channel #%v\n", m.id, chanId)
 	}
 }
 
-func (m *MachineImpl[T, K, U, G]) SetSend(send []chan Message[T, K]) {
+func (m *MachineImpl[T, K, U, G]) SetSend(send []chan Message[T, K]) error {
+	// if len(send) != int(m.nNodes)-1 {
+	// 	return fmt.Errorf("! SetSend []chan size %v is not valid", len(send))
+	// }
 	m.send = send
+	return nil
 }
 
 func (m *MachineImpl[T, K, U, G]) PrintInfo() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	fmt.Printf("Machine %v\n- Local Clock\n%v\n- Version Chain\n", m.id, m.manager.LocalClk.Snapshot())
+	fmt.Printf("Machine %v\n- Local Clock %v\n- Version Chain\n", m.id, m.manager.LocalClk.SnapshotTS())
 	// fmt.Printf("- Data %v", m.GetData())
 	m.manager.VerChain.Traverse()
 	fmt.Printf("Machine %v Ends\n\n", m.id)

@@ -21,7 +21,7 @@ func NewVersion[T any, K any, U DistributedClock[K]](
 }
 
 func (v Version[T, K, U]) String() string {
-	return fmt.Sprintf("Version{data: %v, Ts: %v}", v.data, v.timestamp)
+	return fmt.Sprintf("Version{data: %v, Ts: %v, Source: %v}", v.data, v.timestamp, v.id)
 }
 
 func (v Version[T, K, U]) GetTs() DistributedClock[K] {

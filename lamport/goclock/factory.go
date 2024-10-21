@@ -31,7 +31,7 @@ func (factory *MachineFactory[T, K]) produce(assignedId uint64) (Machine[T, K], 
 	return &machine, recv
 }
 
-func (factory *MachineFactory[T, K]) StartAll() {
+func (factory *MachineFactory[T, K]) StartAll() error {
 	var i uint64 = 0
 	factory.Channels = make([]chan Message[T, K], factory.NumNode)
 	factory.Machines = make([]Machine[T, K], factory.NumNode)
@@ -41,7 +41,16 @@ func (factory *MachineFactory[T, K]) StartAll() {
 	}
 
 	for i, machine := range factory.Machines {
-		machine.SetSend(append(factory.Channels[:i], factory.Channels[i+1:]...))
+		tmp := append(
+			make([]chan Message[T, K], 0, factory.NumNode-1),
+			factory.Channels[:i]...,
+		)
+		tmp = append(tmp, factory.Channels[i+1:]...)
+		if err := machine.SetSend(tmp); err != nil {
+			return err
+		}
 		machine.Start()
 	}
+
+	return nil
 }

@@ -29,7 +29,7 @@ type Machine[T Payload, K ClockDataType] interface {
 	Broadcast(Message[T, K])
 	Listen()
 	LocalEvent(event func(data T) T)
-	SetSend(send []chan Message[T, K])
+	SetSend(send []chan Message[T, K]) error
 	PrintInfo()
 }
 
