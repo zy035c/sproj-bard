@@ -7,49 +7,32 @@ import (
 
 type MachineFactory[T Payload, K ClockDataType] struct {
 	NumNode             uint64
-	Data                T
 	ListenCycle         time.Duration
 	BufferSize          int
 	LocalClockGenerator func() timestamp.LocalClock[K]
-	Machines            []Machine[T, K]
-	Channels            []chan Message[T, K]
+	MachineGenerator    func(
+		id uint64,
+	) Machine[T, K, Message[T, K]]
+	Machines []Machine[T, K, Message[T, K]]
 }
 
-func (factory *MachineFactory[T, K]) produce(assignedId uint64) (Machine[T, K], chan Message[T, K]) {
-	recv := make(chan Message[T, K], factory.BufferSize)
-	machine := MachineImpl[T, K, ClockAbbr[K], timestamp.LocalClock[K]]{
-		data:        factory.Data,
-		listenCycle: factory.ListenCycle,
-		recv:        recv,
-		id:          assignedId,
-		nNodes:      factory.NumNode,
-		manager: timestamp.TsManagerNew[T, K, ClockAbbr[K], timestamp.LocalClock[K]](
+func (factory *MachineFactory[T, K]) produce(assignedId uint64) Machine[T, K, Message[T, K]] {
+	machine := factory.MachineGenerator(assignedId)
+	machine.SetManager(
+		timestamp.TsManagerNew[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]](
 			0, factory.LocalClockGenerator(),
 		),
-	}
-
-	return &machine, recv
+	)
+	return machine
 }
 
-func (factory *MachineFactory[T, K]) StartAll() error {
+func (factory *MachineFactory[T, K]) InitAll() error {
 	var i uint64 = 0
-	factory.Channels = make([]chan Message[T, K], factory.NumNode)
-	factory.Machines = make([]Machine[T, K], factory.NumNode)
+	factory.Machines = make([]Machine[T, K, Message[T, K]], factory.NumNode)
 
 	for ; i < factory.NumNode; i++ {
-		factory.Machines[i], factory.Channels[i] = factory.produce(i)
-	}
-
-	for i, machine := range factory.Machines {
-		tmp := append(
-			make([]chan Message[T, K], 0, factory.NumNode-1),
-			factory.Channels[:i]...,
-		)
-		tmp = append(tmp, factory.Channels[i+1:]...)
-		if err := machine.SetSend(tmp); err != nil {
-			return err
-		}
-		machine.Start()
+		factory.Machines[i] = factory.produce(i)
+		factory.Machines[i].Start()
 	}
 
 	return nil

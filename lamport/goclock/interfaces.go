@@ -1,6 +1,10 @@
 package goclock
 
-import "lamport/timestamp"
+import (
+	"lamport/exchange"
+	"lamport/option"
+	"lamport/timestamp"
+)
 
 type PayloadType uint8
 
@@ -23,25 +27,34 @@ type ClockDataType interface {
 	int | []uint64
 }
 
-type Machine[T Payload, K ClockDataType] interface {
+type Machine[T Payload, K ClockDataType, M Message[T, K]] interface {
 	Start()
 	Stop()
-	Broadcast(Message[T, K])
+
+	publish(Message[T, K], exchange.Exchange[M])
+	poll() *option.Option[M]
 	Listen()
+	Broadcast(Message[T, K])
+
+	BindSub(recv exchange.Exchange[Message[T, K]])
+	BindPub(send exchange.Exchange[M]) error
+
 	LocalEvent(event func(data T) T)
-	SetSend(send []chan Message[T, K]) error
 	PrintInfo()
+
+	GetId() uint64
+	SetManager(*timestamp.TsManager[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]])
 }
 
-type ClockAbbr[K any] timestamp.DistributedClock[K]
+// type timestamp.DistributedClock[K any] timestamp.DistributedClock[K]
 
-type Message[T Payload, K any] interface {
+type Message[T Payload, K ClockDataType] interface {
 	String() string
 	GetTs() timestamp.DistributedClock[K]
 	GetData() T
 	GetId() uint64
 }
 
-// func MessageToVersion[T Payload, K any, U ClockAbbr[K]](msg Message[T, K, U]) *timestamp.Version[T, K, U] {
-// 	return timestamp.NewVersion[T, K, U](msg.GetData(), msg.GetTs(), msg.GetId())
+// func MessageToVersion[T Payload, K any, U timestamp.DistributedClock[K]](msg Message[T, K, U]) *timestamp.Version[T, K] {
+// 	return timestamp.NewVersion[T, K](msg.GetData(), msg.GetTs(), msg.GetId())
 // }
