@@ -1,6 +1,7 @@
 package timestamp
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 )
@@ -10,7 +11,7 @@ type LamportClock struct {
 	counter int
 }
 
-func (u LamportClock) DefaultTsCmp(v DistributedClock[int]) TsOrder {
+func (u *LamportClock) DefaultTsCmp(v DistributedClock[int]) TsOrder {
 	if u.counter > v.Value() {
 		return BEF
 	} else if u.counter == v.Value() {
@@ -20,11 +21,11 @@ func (u LamportClock) DefaultTsCmp(v DistributedClock[int]) TsOrder {
 	}
 }
 
-func (u LamportClock) Value() int {
+func (u *LamportClock) Value() int {
 	return u.counter
 }
 
-func (u LamportClock) String() string {
+func (u *LamportClock) String() string {
 	return fmt.Sprintf("Lamport{%v}", u.counter)
 }
 
@@ -41,6 +42,22 @@ func (clock *LamportClock) Clone() DistributedClock[int] {
 		counter: clock.Value(),
 	}
 }
+
+func (clock *LamportClock) MarshalJSON() ([]byte, error) {
+	return json.Marshal(DistClockJson[int]{Data: clock.counter, ClockType: "lamport"})
+}
+
+func (clock *LamportClock) UnmarshalJSON(data []byte) error {
+	var dict DistClockJson[int]
+	err := json.Unmarshal(data, &dict)
+	if err != nil {
+		return err
+	}
+	clock.counter = dict.Data
+	return nil
+}
+
+var _ DistributedClock[int] = &LamportClock{}
 
 /*
 --------------------------

@@ -1,8 +1,8 @@
 package exchange
 
-type Exchange[T any] interface {
-	Put(t T) bool
-	Get() T
-	C() <-chan T
+type Exchange interface {
+	Put(t []byte) bool
+	Get() []byte
+	C() <-chan []byte
 	GetId() uint64
 }

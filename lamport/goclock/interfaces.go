@@ -27,17 +27,18 @@ type ClockDataType interface {
 	int | []uint64
 }
 
-type Machine[T Payload, K ClockDataType, M Message[T, K]] interface {
+type Machine[T Payload, K ClockDataType] interface {
 	Start()
 	Stop()
+	Init()
 
-	publish(Message[T, K], exchange.Exchange[M])
-	poll() *option.Option[M]
+	publish(VersionPtr[T, K], exchange.Exchange)
+	poll() *option.Option[VersionPtr[T, K]]
 	Listen()
-	Broadcast(Message[T, K])
+	Broadcast(VersionPtr[T, K])
 
-	BindSub(recv exchange.Exchange[Message[T, K]])
-	BindPub(send exchange.Exchange[M]) error
+	BindSub(recv exchange.Exchange)
+	BindPub(send exchange.Exchange) error
 
 	LocalEvent(event func(data T) T)
 	PrintInfo()

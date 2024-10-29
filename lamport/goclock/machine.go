@@ -1,6 +1,7 @@
 package goclock
 
 import (
+	"encoding/json"
 	"fmt"
 	"lamport/exchange"
 	"lamport/option"
@@ -9,12 +10,14 @@ import (
 	"time"
 )
 
-type MachineImpl[T Payload, K ClockDataType, U timestamp.DistributedClock[K], G timestamp.LocalClock[K]] struct { // in fact M should be bound by Message[T, K]
+type VersionPtr[T any, K any] *timestamp.Version[T, K]
+
+type MachineImpl[T Payload, K ClockDataType] struct { // in fact M should be bound by Version[T, K]
 	data        T // possession
 	mutex       sync.Mutex
 	listenCycle time.Duration
-	sub         []exchange.Exchange[Message[T, K]]
-	pub         []exchange.Exchange[Message[T, K]]
+	sub         []exchange.Exchange
+	pub         []exchange.Exchange
 	id          uint64
 	nNodes      uint64
 	manager     *timestamp.TsManager[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]]
@@ -25,36 +28,39 @@ type MachineImpl[T Payload, K ClockDataType, U timestamp.DistributedClock[K], G 
 	// pubPool    utils.ThreadPool
 }
 
-func (m *MachineImpl[T, K, U, G]) GetData() T {
+func (m *MachineImpl[T, K]) GetData() T {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.data
 }
 
-func (m *MachineImpl[T, K, U, G]) Start() {
+func (m *MachineImpl[T, K]) Init() {
+	// m.pub = make([]exchange.Exchange)
+	// m.sub = make([]exchange.Exchange, m.pub_sub_size)
+}
+
+func (m *MachineImpl[T, K]) Start() {
 	if m.nSubThread == 0 {
 		m.nSubThread = 1
 	}
 	if m.nPubThread == 0 {
 		m.nPubThread = 1
 	}
-	m.pub = make([]exchange.Exchange[Message[T, K]], m.pub_sub_size)
-	m.sub = make([]exchange.Exchange[Message[T, K]], m.pub_sub_size)
 	// m.pubPool.Init(int(m.nPubThread))
 	m.Listen()
 }
 
-func (m *MachineImpl[T, K, U, G]) Stop() {
+func (m *MachineImpl[T, K]) Stop() {
 	// state machine (e.g. simulated down/offline)
 }
 
-func (m *MachineImpl[T, K, U, G]) LocalEvent(event func(data T) T) {
+func (m *MachineImpl[T, K]) LocalEvent(event func(data T) T) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.data = event(m.data)
 	cur_version := timestamp.NewVersion[T, K](
 		m.data,
-		m.manager.LocalClk.SnapshotTS().(U),
+		m.manager.LocalClk.SnapshotTS(),
 		m.id,
 	)
 	m.manager.Add(cur_version.Clone())
@@ -63,14 +69,17 @@ func (m *MachineImpl[T, K, U, G]) LocalEvent(event func(data T) T) {
 		// 	cur_version.Clone(),
 		// 	pub,
 		// )
-		cl := cur_version.Clone()
-		res := pub.Put(cl)
-		fmt.Printf("+ Pub msg %v to exch %v res=%v\n", cur_version, pub.GetId(), res)
+		bytestream, err := json.Marshal(cur_version)
+		if err != nil {
+			panic(err)
+		}
+		res := pub.Put(bytestream)
+		fmt.Printf("+ Machine %v Pub msg %v to exch %v res=%v\n", m.id, cur_version, pub.GetId(), res)
 	}
-	m.Broadcast(cur_version)
+	// m.Broadcast(cur_version)
 }
 
-func (m *MachineImpl[T, K, U, G]) Broadcast(msg Message[T, K]) {
+func (m *MachineImpl[T, K]) Broadcast(msg VersionPtr[T, K]) {
 	// for _, pub := range m.pub {
 	// 	m.publish(
 	// 		msg.(timestamp.Version[T, K]).Clone(),
@@ -79,7 +88,7 @@ func (m *MachineImpl[T, K, U, G]) Broadcast(msg Message[T, K]) {
 	// }
 }
 
-func (m *MachineImpl[T, K, U, G]) publish(msg Message[T, K], ex exchange.Exchange[Message[T, K]]) {
+func (m *MachineImpl[T, K]) publish(msg VersionPtr[T, K], ex exchange.Exchange) {
 	// m.pubPool.Submit(func() any {
 	// 	res := ex.Put(msg.(M))
 	// 	fmt.Println("+ Pub msg %v to exch &v res=%v\n", msg, ex.GetId(), res)
@@ -92,7 +101,7 @@ func (m *MachineImpl[T, K, U, G]) publish(msg Message[T, K], ex exchange.Exchang
 	// fmt.Printf("+ Pub msg %v to exch %v res=%v\n", msg, ex.GetId(), res)
 }
 
-func (m *MachineImpl[T, K, U, G]) poll() *option.Option[Message[T, K]] {
+func (m *MachineImpl[T, K]) poll() *option.Option[VersionPtr[T, K]] {
 	// var cases []reflect.SelectCase
 	// for _, ch := range m.sub {
 	// 	cases = append(cases, reflect.SelectCase{
@@ -105,27 +114,29 @@ func (m *MachineImpl[T, K, U, G]) poll() *option.Option[Message[T, K]] {
 	// })
 	// chosen, recv, ok := reflect.Select(cases)
 	// if chosen < len(m.sub) && ok {
-	// 	return utils.ReflectConvert[Message[T, K]](recv)
+	// 	return utils.ReflectConvert[Version[T, K]](recv)
 	// }
 	for _, ch := range m.sub {
 		select {
-		case elem := <-ch.C():
-			return option.Some[Message[T, K]](elem)
+		case bytestream := <-ch.C():
+			ver := &timestamp.Version[T, K]{}
+			json.Unmarshal(bytestream, ver)
+			return option.Some[VersionPtr[T, K]](ver)
 		default:
 			//
 		}
 	}
-	return option.None[Message[T, K]]()
+	return option.None[VersionPtr[T, K]]()
 }
 
-func (m *MachineImpl[T, K, U, G]) Listen() {
+func (m *MachineImpl[T, K]) Listen() {
 	for i := 0; i < int(m.nSubThread); i++ {
 		go func() {
 			for {
 				res := m.poll()
 				if res.Has() {
 					msg := res.Unwrap()
-					fmt.Printf("+ Machine %v Receiving msg %v\n", m.id, msg)
+					fmt.Printf("+ Machine %v Sub msg %v\n", m.id, msg)
 					m.handleMsg(msg)
 				} else {
 					time.Sleep(m.listenCycle)
@@ -135,21 +146,20 @@ func (m *MachineImpl[T, K, U, G]) Listen() {
 	}
 }
 
-func (m *MachineImpl[T, K, U, G]) handleMsg(msg Message[T, K]) {
-	v, ok := msg.(timestamp.Version[T, K])
-	if !ok {
-		panic("")
-	}
+func (m *MachineImpl[T, K]) handleMsg(msg VersionPtr[T, K]) {
+	// if !ok {
+	// 	panic("")
+	// }
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.manager.Add(v)
+	m.manager.Add(*msg)
 }
 
-func (m *MachineImpl[T, K, U, G]) BindSub(recv exchange.Exchange[Message[T, K]]) {
+func (m *MachineImpl[T, K]) BindSub(recv exchange.Exchange) {
 	m.sub = append(m.sub, recv)
 }
 
-func (m *MachineImpl[T, K, U, G]) BindPub(send exchange.Exchange[Message[T, K]]) error {
+func (m *MachineImpl[T, K]) BindPub(send exchange.Exchange) error {
 	// if len(send) != int(m.nNodes)-1 {
 	// 	return fmt.Errorf("! SetSend []chan size %v is not valid", len(send))
 	// }
@@ -157,7 +167,7 @@ func (m *MachineImpl[T, K, U, G]) BindPub(send exchange.Exchange[Message[T, K]])
 	return nil
 }
 
-func (m *MachineImpl[T, K, U, G]) PrintInfo() {
+func (m *MachineImpl[T, K]) PrintInfo() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	fmt.Printf("Machine %v\n- Local Clock %v\n- Version Chain\n", m.id, m.manager.LocalClk.SnapshotTS())
@@ -166,10 +176,12 @@ func (m *MachineImpl[T, K, U, G]) PrintInfo() {
 	fmt.Printf("Machine %v Ends\n\n", m.id)
 }
 
-func (m *MachineImpl[T, K, U, G]) GetId() uint64 {
+func (m *MachineImpl[T, K]) GetId() uint64 {
 	return m.id
 }
 
-func (m *MachineImpl[T, K, U, G]) SetManager(mngr *timestamp.TsManager[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]]) {
+func (m *MachineImpl[T, K]) SetManager(mngr *timestamp.TsManager[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]]) {
 	m.manager = mngr
 }
+
+var _ Machine[string, int] = &MachineImpl[string, int]{}

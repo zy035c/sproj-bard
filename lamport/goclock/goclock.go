@@ -22,14 +22,15 @@ func Main() {
 		},
 		MachineGenerator: func(
 			id uint64,
-		) Machine[string, int, Message[string, int]] {
-			return &MachineImpl[string, int, *timestamp.LamportClock, *timestamp.LamportLocalClock]{
+		) Machine[string, int] {
+			return &MachineImpl[string, int]{
 				data:         "None",
 				listenCycle:  time.Millisecond * 300,
 				nNodes:       numNode,
 				nSubThread:   1,
 				nPubThread:   1,
 				pub_sub_size: pub_sub_size,
+				id:           id,
 			}
 		},
 	}
@@ -38,17 +39,18 @@ func Main() {
 		fmt.Println(err)
 	}
 	ConfigSimpleDistributedStorage(&factory)
+	factory.StartAll()
 	SimulateSimpleDistributedStorage(&factory)
 }
 
 func ConfigSimpleDistributedStorage(factory *MachineFactory[string, int]) {
-	mb := &MessageBroker[timestamp.Version[string, int]]{
+	mb := &MessageBroker{
 		nExch:     factory.NumNode,
-		exchanges: make(map[uint64]exchange.Exchange[timestamp.Version[string, int]]),
+		exchanges: make(map[uint64]exchange.Exchange, factory.NumNode),
 	}
 
 	for _, m := range factory.Machines {
-		exch, err := exchange.NewExchangeImpl[timestamp.Version[string, int]](0, 0, 0, 0, m.GetId())
+		exch, err := exchange.NewSingleBroker(0, 0, 0, 0, m.GetId())
 		if err != nil {
 			panic("Failed Creating ExchangeImpl")
 		}

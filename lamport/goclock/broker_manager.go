@@ -2,16 +2,16 @@ package goclock
 
 import "lamport/exchange"
 
-type MessageBroker[M any] struct {
-	exchanges map[uint64]exchange.Exchange[M]
+type MessageBroker struct {
+	exchanges map[uint64]exchange.Exchange
 	nExch     uint64
 }
 
-func (mb *MessageBroker[M]) Add(ex exchange.Exchange[M]) {
+func (mb *MessageBroker) Add(ex exchange.Exchange) {
 	mb.exchanges[ex.GetId()] = ex
 }
 
-func (mb *MessageBroker[M]) Get(id uint64) exchange.Exchange[M] {
+func (mb *MessageBroker) Get(id uint64) exchange.Exchange {
 	return mb.exchanges[id]
 }
 
