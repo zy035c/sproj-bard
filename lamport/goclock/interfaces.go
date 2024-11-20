@@ -45,16 +45,12 @@ type Machine[T Payload, K ClockDataType] interface {
 
 	GetId() uint64
 	SetManager(*timestamp.TsManager[T, K, timestamp.DistributedClock[K], timestamp.LocalClock[K]])
+
+	GetVersionChainData() []T
+	SetVerbose(v bool)
 }
 
 // type timestamp.DistributedClock[K any] timestamp.DistributedClock[K]
-
-type Message[T Payload, K ClockDataType] interface {
-	String() string
-	GetTs() timestamp.DistributedClock[K]
-	GetData() T
-	GetId() uint64
-}
 
 // func MessageToVersion[T Payload, K any, U timestamp.DistributedClock[K]](msg Message[T, K, U]) *timestamp.Version[T, K] {
 // 	return timestamp.NewVersion[T, K](msg.GetData(), msg.GetTs(), msg.GetId())

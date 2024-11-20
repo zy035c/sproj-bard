@@ -40,3 +40,11 @@ func (tsm TsManager[T, K, U, G]) PrintVersionChain() {
 	fmt.Printf("Current ts - %v\n", tsm.LocalClk.Snapshot())
 	tsm.VerChain.Traverse()
 }
+
+func (tsm TsManager[T, K, U, G]) GetVersionChainData() []T {
+	li := []T{}
+	for _, x := range tsm.VerChain.ToList() {
+		li = append(li, x.GetData())
+	}
+	return li
+}

@@ -15,6 +15,7 @@ type ThreadPool struct {
 func (t *ThreadPool) Init(size int) {
 	t.size = size
 	t.freq = time.Millisecond * 400
+	t.sema = make(chan struct{}, 1024)
 	for i := 0; i < t.size; i++ {
 		t.sema <- struct{}{}
 	}
@@ -28,17 +29,16 @@ func (t *ThreadPool) SetWg(n int) {
 	t.wg.Add(n)
 }
 
-func (t *ThreadPool) Submit(f func() any) Promise {
-	for {
-		select {
-		case <-t.sema:
-			p := Promise{}
-			go func() {
-				p.Channel <- f()
+func (t *ThreadPool) Submit(f func() any) {
+	go func() {
+		for {
+			select {
+			case <-t.sema:
+				f()
 				t.sema <- struct{}{}
-			}()
-			return p
-		case <-time.After(t.freq):
+				return
+			case <-time.After(t.freq):
+			}
 		}
-	}
+	}()
 }

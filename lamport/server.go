@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"lamport/controller"
-	"lamport/goclock"
 	"lamport/models"
+	"lamport/simulation"
 	"math/rand"
 	"net/http"
 	"os"
@@ -27,7 +27,7 @@ import (
 
 func main() {
 	// FaultTolerantHandshake.Main()
-	goclock.Main()
+	simulation.Main()
 }
 
 // func StartServer() {

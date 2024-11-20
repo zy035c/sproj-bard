@@ -47,3 +47,17 @@ func RandomInt64(min, max int64) int64 {
 func RandomFloat32(min, max float32) float32 {
 	return min + rand.Float32()*(max-min)
 }
+
+func Reciprocal(x float64) float64 {
+	if x == 0 {
+		panic("cannot compute reciprocal of zero")
+	}
+	return 1 / x
+}
+
+func Poisson(lambda float64) float64 {
+	if lambda <= 0 {
+		panic("lambda must be greater than 0")
+	}
+	return rand.ExpFloat64() / lambda
+}

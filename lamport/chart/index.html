@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Line Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div id="chart" style="width: 100%; height: 600px;"></div>
+    <script>
+        // Initialize the ECharts instance
+        var chart = echarts.init(document.getElementById('chart'));
+
+        // Configure the initial chart options
+        var option = {
+            title: { text: 'Real-Time Line Chart' },
+            xAxis: { type: 'category', data: [] },
+            yAxis: { type: 'value' },
+            series: [{ type: 'line', data: [] }]
+        };
+
+        chart.setOption(option);
+
+        // Create WebSocket connection
+        var ws = new WebSocket("ws://localhost:8084/ws");
+
+        ws.onmessage = function(event) {
+            var newData = JSON.parse(event.data);
+            // Update the chart data
+            option.xAxis.data.push(newData.X);
+            option.series[0].data.push(newData.Y);
+            chart.setOption(option);
+        };
+    </script>
+</body>
+</html>

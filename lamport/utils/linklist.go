@@ -60,3 +60,13 @@ func (list LinkList[T]) Traverse() {
 	}
 	fmt.Println("nil")
 }
+
+func (list LinkList[T]) ToList() []T {
+	l := make([]T, 0)
+	current := list.Head.Next
+	for current != nil {
+		l = append(l, *current.Data)
+		current = current.Next
+	}
+	return l
+}

@@ -84,16 +84,6 @@ func (v *Version[T, K]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
-
-	// Unmarshal the timestamp field separately
-
-	// target := reflect.New(v.timestamp)
-	// Unmarshal the data to an interface to the concrete value (which will act as a pointer, don't ask why)
-	// if err := json.Unmarshal(temp.Timestamp, v.timestamp); err != nil {
-	// 	return err
-	// }
-	// Now we get the element value of the target and convert it to the interface type (this is to get rid of a pointer type instead of a plain struct value)
-
 	var distClockJson DistClockJson[K]
 
 	if err := json.Unmarshal(temp.Timestamp, &distClockJson); err != nil {

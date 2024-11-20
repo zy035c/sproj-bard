@@ -12,6 +12,7 @@ type MachineFactory[T Payload, K ClockDataType] struct {
 	LocalClockGenerator func() timestamp.LocalClock[K]
 	MachineGenerator    func(id uint64) Machine[T, K]
 	Machines            []Machine[T, K]
+	Verbose             bool
 }
 
 func (factory *MachineFactory[T, K]) produce(assignedId uint64) Machine[T, K] {
@@ -21,6 +22,7 @@ func (factory *MachineFactory[T, K]) produce(assignedId uint64) Machine[T, K] {
 			0, factory.LocalClockGenerator(),
 		),
 	)
+	machine.SetVerbose(factory.Verbose)
 	return machine
 }
 
