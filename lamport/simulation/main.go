@@ -7,6 +7,7 @@ import (
 	"lamport/timestamp"
 	"lamport/utils"
 	"math/rand"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,7 +21,7 @@ var conf = SimConfig{
 
 func Main() {
 	go dyn_chart.Main()
-	PossionRandomSimulationWithDelay()
+	PossionRandomSimulation()
 	// goclock.Main()
 }
 
@@ -28,7 +29,7 @@ type Machine[T goclock.Payload, K goclock.ClockDataType] goclock.Machine[T, K]
 
 func Config() *goclock.MachineFactory[string, int] {
 	// full connected network
-	var numNode uint64 = 5
+	var numNode uint64 = 12
 	var pub_sub_size uint32 = 1024
 
 	factory := goclock.MachineFactory[string, int]{
@@ -45,23 +46,6 @@ func Config() *goclock.MachineFactory[string, int] {
 	return &factory
 }
 
-func Task(factory *goclock.MachineFactory[string, int], epoch int) {
-	if epoch%10 == 0 {
-		fmt.Printf("\n\n********** Epoch %v PrintInfo **********\n\n", epoch)
-		for _, m := range factory.Machines {
-			m.PrintInfo()
-			fmt.Printf("- Score=%v\n", CalcScore(epoch, m))
-			fmt.Printf("\n")
-		}
-		fmt.Printf("\n********** PrintInfo End **********\n\n\n")
-	}
-	curId := rand.Intn(int(factory.NumNode))
-	factory.Machines[curId].LocalEvent(func(data string) string {
-		return fmt.Sprintf("Epoch%v", epoch)
-	})
-	fmt.Printf("- Simulating: Local Event at Machine%v, Epoch%v\n", curId, epoch)
-}
-
 func PossionRandomSimulation() {
 	fmt.Printf("----- PossionRandomSimulation -----\n")
 	factory := Config()
@@ -71,7 +55,8 @@ func PossionRandomSimulation() {
 	goclock.ConfigSimpleDistributedStorage(factory)
 	factory.StartAll()
 
-	epoch := 1
+	var counter atomic.Int64
+	counter.Store(1)
 
 	var acc_time float64 = 0
 
@@ -82,67 +67,40 @@ func PossionRandomSimulation() {
 			fmt.Printf("Sleeping for %v\n", interval)
 			time.Sleep(interval)
 		}
-		if utils.RandomFloat32(0.0, 1.0) < conf.ReadWriteRatio {
-			PlotScore(epoch, factory.Machines, acc_time, dyn_chart)
-		} else {
-			Task(factory, epoch)
-			epoch++
+
+		epoch := int(counter.Load())
+		event := Event{
+			Epoch: epoch,
+			Mid:   rand.Intn(int(factory.NumNode)),
 		}
+
+		if utils.RandomFloat32(0.0, 1.0) < conf.ReadWriteRatio {
+			event.Etype = READ
+			event.Op = func() {
+				fmt.Printf("--- Simulating: READ at Machine%v, Epoch%v\n", event.Mid, epoch)
+				PlotFlawMetric(epoch, factory.Machines, acc_time, dyn_chart)
+				RandomSampleNodeVersionChain(factory.Machines, event.Mid)
+				PrintCycleMetric(epoch, factory.Machines)
+			}
+		} else {
+			event.Etype = WRITE
+			event.Op = func() {
+				fmt.Printf("--- Simulating: WRITE at Machine%v, Epoch%v\n", event.Mid, epoch)
+				factory.Machines[event.Mid].LocalEvent(func(data string) string {
+					return fmt.Sprintf("Epoch%v", epoch)
+				})
+			}
+			counter.Add(1)
+		}
+		event.Op()
 	}
 }
 
 func FixedIntervalSimulation() {
-	fmt.Printf("----- FixedIntervalSimulation -----\n")
-	factory := Config()
-
-	factory.InitAll()
-	goclock.ConfigSimpleDistributedStorage(factory)
-	factory.StartAll()
-
-	var acc_time float64 = 0
-
-	epoch := 1
-
-	for {
-		interval := conf.AvgInterval
-		if interval > 0 {
-			fmt.Printf("Sleeping for %v\n", interval)
-			time.Sleep(conf.AvgInterval)
-		}
-		if utils.RandomFloat32(0.0, 1.0) < conf.ReadWriteRatio {
-			PlotScore(epoch, factory.Machines, acc_time, dyn_chart)
-		} else {
-			Task(factory, epoch)
-			epoch++
-		}
-	}
+	// interval := conf.AvgInterval
 }
 
 func PossionRandomSimulationWithDelay() {
 	fmt.Printf("----- PossionRandomSimulationWithDelay -----\n")
-	factory := Config()
-	if err := factory.InitAll(); err != nil {
-		fmt.Println(err)
-	}
-	goclock.ConfigPoissonDelayDistributedStorage(factory, conf.AvgDelay)
-	factory.StartAll()
-
-	epoch := 1
-
-	var acc_time float64 = 0
-
-	for {
-		interval := conf.PoissonInterval()
-		acc_time += float64(interval)
-		if interval > 0 {
-			fmt.Printf("Sleeping for %v\n", interval)
-			time.Sleep(interval)
-		}
-		if utils.RandomFloat32(0.0, 1.0) < conf.ReadWriteRatio {
-			PlotScore(epoch, factory.Machines, acc_time, dyn_chart)
-		} else {
-			Task(factory, epoch)
-			epoch++
-		}
-	}
+	// TODO
 }

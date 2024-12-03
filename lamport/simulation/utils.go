@@ -1,10 +1,13 @@
 package simulation
 
 import (
+	"fmt"
 	"lamport/chart"
 	"lamport/goclock"
+	"lamport/utils"
 	"math"
 	"strconv"
+	"strings"
 )
 
 func GenerateCorrectVersionChain(epoch int) []int {
@@ -18,37 +21,51 @@ func GenerateCorrectVersionChain(epoch int) []int {
 	return chain
 }
 
-func CalculateScore(versionChain []string, epoch int) int {
-	standardChain := GenerateCorrectVersionChain(epoch)
-	roundList := make([]int, len(versionChain))
-	for i, x := range versionChain {
+func VerChainStrToInt(chain []string) []int {
+	roundList := make([]int, len(chain))
+	for i, x := range chain {
 		num, _ := strconv.Atoi(x[5:]) // remove chars 'epoch'
 		roundList[i] = num
 	}
-	// fmt.Println("standardChain", standardChain)
-	// fmt.Println("roundList", roundList)
-	return DamerauLevenshteinScore(roundList, standardChain)
+	return roundList
 }
 
-func CalcScore(epoch int, m Machine[string, int]) float64 {
-	vchain := m.GetVersionChainData()
-	// fmt.Println("- vchain =", vchain)
-	score := CalculateScore(vchain, epoch)
+func CalcFlawRate(epoch int, machineChain []int) float64 {
+	// fmt.Println("- vchain =", machineChain)
+	standardChain := GenerateCorrectVersionChain(epoch)
+	score := DamerauLevenshteinScore(machineChain, standardChain)
 	// fmt.Println("- Score =", score)
-	var good_chain_rate float64 = float64(score) / float64(epoch)
-	return good_chain_rate
+	var flaw_rate float64 = float64(score) / float64(epoch)
+	return flaw_rate
 }
 
-func PlotScore(epoch int, ms []goclock.Machine[string, int], time float64, dyn_chart *chart.DynamicChart) float64 {
+func PlotFlawMetric(epoch int, ms []goclock.Machine[string, int], time float64, dyn_chart *chart.DynamicChart) {
 	var score_sum float64 = 0
 	for _, m := range ms {
-		score := CalcScore(epoch, m)
-		score_sum += score
+		flaw_rate := CalcFlawRate(epoch, VerChainStrToInt(m.GetVersionChainData()))
+		if flaw_rate > 0 {
+			fmt.Println(">> Flaw detected: ", strings.Join(m.GetVersionChainData(), "->"))
+		}
+		score_sum += flaw_rate
 	}
 	// fmt.Println("- Score_sum ", score_sum)
 	score := score_sum / float64(len(ms))
 	go dyn_chart.SendDataPoint(chart.DataPoint{X: float64(epoch), Y: score})
-	return score
+	fmt.Println("- Metric Flaw Rate: ", score)
+}
+
+func RandomSampleNodeVersionChain(ms []goclock.Machine[string, int], rid int) {
+	fmt.Println("- Sampling Node", rid, strings.Join(ms[rid].GetVersionChainData(), "->"))
+}
+
+func PrintCycleMetric(epoch int, ms []goclock.Machine[string, int]) {
+	chains := make([][]int, 1024)
+	for _, m := range ms {
+		chains = append(chains, VerChainStrToInt(m.GetVersionChainData()))
+	}
+	chains = append(chains, GenerateCorrectVersionChain(epoch))
+	nCycle := CalcDependGraphCycle(chains, epoch)
+	fmt.Println("- Metric Dependency Cycle N: ", nCycle)
 }
 
 // min returns the minimum value among the given integers
@@ -115,4 +132,46 @@ func DamerauLevenshteinScore(s1, s2 []int) int {
 
 	// Return the final computed distance
 	return distance[lenS1][lenS2]
+}
+
+func CalcDependGraphCycle(chains [][]int, maxEpoch int) int {
+	/*
+		* Input:
+			chains is a slice of slices
+				index: Machine Id: int
+				value: The Version Chain stored on that machine
+
+		*
+		* Each chain starts with 0, with the last number being the latest version that node considers
+		* Now build a graph with nodes each represents a Version Id
+		* We have two sources for partial orders (directed edge):
+		1. On a single version chain, e.g. chains[3] = [0, 1, 3, 2, 4, 6]
+		We conclude that these nodes are in order:
+			0 BEFORE 1 BEFORE 3 BEFORE 2 BEFORE 4 BEFORE 6
+			We add directed edge if not exists.
+
+		2. The number has an ensured being monotonically increased:
+			0 BEFORE 1 BEFORE 2 BEFORE 3 BEFORE 4 BEFORE (5) BEFORE 6
+			We add directed edge if not exists.
+
+		Iterate over each chain to add edges, add monotonic order edges.
+		Calculate the total number of directed cycle in the graph.
+		Also write a test function.
+	*/
+
+	adj := make(map[int][]int)
+
+	for _, chain := range chains {
+
+		for i := 0; i < len(chain)-1; i++ {
+			from := chain[i]
+			to := chain[i+1]
+			if _, exists := adj[from]; !exists {
+				adj[from] = []int{}
+			}
+			adj[from] = utils.Append_if_not_exist(to, adj[from])
+		}
+	}
+
+	return utils.CountCycles(adj)
 }

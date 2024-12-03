@@ -63,7 +63,7 @@ func (chart *DynamicChart) Main() {
 	// Listen and handle data reception
 	go func() {
 		for value := range chart.DataCh {
-			fmt.Printf("New data point: %v\n", value)
+			// fmt.Printf("New data point: %v\n", value)
 			for _, conn := range connections {
 				err := conn.WriteJSON(value)
 				if err != nil {

@@ -171,8 +171,8 @@ func (m *MachineImpl[T, K]) SetManager(mngr *timestamp.TsManager[T, K, timestamp
 }
 
 func (m *MachineImpl[T, K]) GetVersionChainData() []T {
-	// m.mutex.Lock()
-	// defer m.mutex.Unlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	return m.manager.GetVersionChainData()
 }
 
