@@ -10,12 +10,12 @@ import (
 	"strings"
 )
 
-func GenerateCorrectVersionChain(epoch int) []int {
-	if epoch < 0 {
+func GenerateCorrectVersionChain(vid int) []int {
+	if vid < 0 {
 		return []int{}
 	}
 	chain := []int{}
-	for i := epoch - 1; i > 0; i-- {
+	for i := 1; i < vid; i++ {
 		chain = append(chain, i)
 	}
 	return chain
@@ -24,25 +24,25 @@ func GenerateCorrectVersionChain(epoch int) []int {
 func VerChainStrToInt(chain []string) []int {
 	roundList := make([]int, len(chain))
 	for i, x := range chain {
-		num, _ := strconv.Atoi(x[5:]) // remove chars 'epoch'
+		num, _ := strconv.Atoi(x[3:]) // remove chars 'Vid'
 		roundList[i] = num
 	}
 	return roundList
 }
 
-func CalcFlawRate(epoch int, machineChain []int) float64 {
+func CalcFlawRate(vid int, machineChain []int) float64 {
 	// fmt.Println("- vchain =", machineChain)
-	standardChain := GenerateCorrectVersionChain(epoch)
+	standardChain := GenerateCorrectVersionChain(vid)
 	score := DamerauLevenshteinScore(machineChain, standardChain)
 	// fmt.Println("- Score =", score)
-	var flaw_rate float64 = float64(score) / float64(epoch)
+	var flaw_rate float64 = float64(score) / float64(vid)
 	return flaw_rate
 }
 
-func PlotFlawMetric(epoch int, ms []goclock.Machine[string, int], time float64, dyn_chart *chart.DynamicChart) {
+func PlotFlawMetric(vid int, ms []goclock.Machine[string, int], time float64, dyn_chart *chart.DynamicChart) {
 	var score_sum float64 = 0
 	for _, m := range ms {
-		flaw_rate := CalcFlawRate(epoch, VerChainStrToInt(m.GetVersionChainData()))
+		flaw_rate := CalcFlawRate(vid, VerChainStrToInt(m.GetVersionChainData()))
 		if flaw_rate > 0 {
 			fmt.Println(">> Flaw detected: ", strings.Join(m.GetVersionChainData(), "->"))
 		}
@@ -50,12 +50,12 @@ func PlotFlawMetric(epoch int, ms []goclock.Machine[string, int], time float64, 
 	}
 	// fmt.Println("- Score_sum ", score_sum)
 	score := score_sum / float64(len(ms))
-	go dyn_chart.SendDataPoint(chart.DataPoint{X: float64(epoch), Y: score})
-	fmt.Println("- Metric Flaw Rate: ", score)
+	go dyn_chart.SendDataPoint(chart.DataPoint{X: float64(vid), Y: score})
+	// fmt.Println("- Metric Flaw Rate: ", score)
 }
 
-func RandomSampleNodeVersionChain(ms []goclock.Machine[string, int], rid int) {
-	fmt.Println("- Sampling Node", rid, strings.Join(ms[rid].GetVersionChainData(), "->"))
+func RandomSampleNodeVersionChain(ms []goclock.Machine[string, int], rid int, version_chain []string) {
+	// fmt.Println("- Sampling Node", rid, strings.Join(version_chain, "->"))
 }
 
 func PrintCycleMetric(epoch int, ms []goclock.Machine[string, int]) {
@@ -175,3 +175,8 @@ func CalcDependGraphCycle(chains [][]int, maxEpoch int) int {
 
 	return utils.CountCycles(adj)
 }
+
+// \de\addplot[color=red, mark=square*, thick] coordinates {(1, 100) (10, 200) (100, 400) (1000, 800) (10000, 900)};
+// \addplot[color=blue, mark=*, thick] coordinates {(1, 150) (10, 250) (100, 500) (1000, 600) (10000, 850)};
+// \addplot[color=Emerald, mark=triangle*, thick] coordinates {(1, 200) (10, 300) (100, 450) (1000, 700) (10000, 950)};
+// \addplot[color=BurntOrange, mark=x, thick] coordinates {(1, 50) (10, 100) (100, 300) (1000, 500) (10000, 750)};

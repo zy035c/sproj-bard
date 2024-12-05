@@ -64,9 +64,17 @@ func (list LinkList[T]) Traverse() {
 func (list LinkList[T]) ToList() []T {
 	l := make([]T, 0)
 	current := list.Head.Next
+
 	for current != nil {
 		l = append(l, *current.Data)
 		current = current.Next
 	}
-	return l
+
+	res := make([]T, 0, len(l))
+
+	for i := len(l) - 1; i >= 0; i-- {
+		res = append(res, l[i])
+	}
+
+	return res
 }

@@ -25,7 +25,7 @@ func Main() {
 		) Machine[string, int] {
 			return &MachineImpl[string, int]{
 				data:         "None",
-				listenCycle:  time.Millisecond * 300,
+				listenCycle:  time.Millisecond * 0,
 				nNodes:       numNode,
 				nSubThread:   1,
 				nPubThread:   1,
@@ -92,14 +92,14 @@ func ConfigDelayDistributedStorage(factory *MachineFactory[string, int], delay_m
 	}
 }
 
-func ConfigPoissonDelayDistributedStorage(factory *MachineFactory[string, int], avg_delay time.Duration) {
+func ConfigPoissonDelayDistributedStorage(factory *MachineFactory[string, int], avg_delay time.Duration, plr float32) {
 	mb := &MessageBroker{
 		nExch:     factory.NumNode,
 		exchanges: make(map[uint64]exchange.Exchange, factory.NumNode),
 	}
 
 	for _, m := range factory.Machines {
-		exch, err := exchange.NewPoissonBroker(avg_delay, 0, 0, m.GetId())
+		exch, err := exchange.NewPoissonBroker(avg_delay, plr, 0, m.GetId())
 		if err != nil {
 			panic("Failed Creating ExchangeImpl")
 		}
