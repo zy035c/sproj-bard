@@ -1,4 +1,4 @@
-A Simulation and Evaluation of Distributed Algorithms
+# A Simulation and Evaluation of Distributed Algorithms
 
 ```shell
 cd lamport
