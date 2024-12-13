@@ -21,10 +21,9 @@ func Main() {
 }
 
 func testSimpleLamport() {
-
 	AddVersion := func(key string, value string, lc int, mngr *LamportTsManager) {
 		mngr.Add(
-			Version[KeyValPair, int, *LamportClock]{
+			Version[KeyValPair, int]{
 				data: KeyValPair{
 					Key: key,
 					Val: value,
@@ -51,7 +50,6 @@ func testSimpleLamport() {
 }
 
 func testSimpleVector() {
-
 	mngr := &VectorTsManager{TsManagerNew[KeyValPair, []uint64, *VectorClock, *VectorLocalClock](
 		1024, &VectorLocalClock{
 			&VectorClock{
@@ -66,7 +64,7 @@ func testSimpleVector() {
 
 	AddVersion := func(key string, value string, lc []uint64, mngr *VectorTsManager) {
 		mngr.Add(
-			Version[KeyValPair, []uint64, *VectorClock]{
+			Version[KeyValPair, []uint64]{
 				data: KeyValPair{
 					Key: key,
 					Val: value,

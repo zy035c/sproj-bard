@@ -1,6 +1,7 @@
 package timestamp
 
 import (
+	"encoding/json"
 	"fmt"
 	"lamport/utils"
 	"sync"
@@ -74,6 +75,21 @@ func (clock *VectorClock) Clone() DistributedClock[[]uint64] {
 		idx:    clock.idx,
 	}
 }
+
+func (clock *VectorClock) String() string {
+	return ""
+}
+
+func (clock *VectorClock) MarshalJSON() ([]byte, error) {
+	return json.Marshal(DistClockJson[[]uint64]{})
+}
+
+func (clock *VectorClock) UnmarshalJSON(json []byte) error {
+	panic("not implemented! (clock *VectorClock) UnmarshalJSON(json []byte) error")
+	// return nil
+}
+
+var _ DistributedClock[[]uint64] = &VectorClock{}
 
 /*
 --------------------------
