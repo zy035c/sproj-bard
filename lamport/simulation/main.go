@@ -14,10 +14,10 @@ import (
 var dyn_chart = chart.Init()
 
 var conf = SimConfig{
-	ReadWriteRatio: 0.6,
-	AvgInterval:    60 * time.Millisecond,
+	ReadWriteRatio: 0.9,
+	AvgInterval:    180 * time.Millisecond,
 	AvgDelay:       40 * time.Millisecond,
-	PLR:            0.00388,
+	PLR:            0.01,
 }
 
 func Main() {
@@ -30,7 +30,7 @@ type Machine[T goclock.Payload, K goclock.ClockDataType] goclock.Machine[T, K]
 
 func Config() *goclock.MachineFactory[string, int] {
 	// full connected network
-	var numNode uint64 = 6
+	var numNode uint64 = 8
 	var pub_sub_size uint32 = 1024
 
 	factory := goclock.MachineFactory[string, int]{
@@ -103,32 +103,32 @@ func PossionRandomSimulation() {
 		}
 		event.Op()
 
+		sample_id := rand.Intn(int(factory.NumNode))
+
 		lastWriteVid := -1
-		lastWrite := hist.GetLast(event.Mid)
+		lastWrite := hist.GetLast(sample_id)
 		if lastWrite != nil {
 			lastWriteVid = lastWrite.Vid
 		}
 
-		version_chain = factory.Machines[event.Mid].GetVersionChainData()
+		version_chain = factory.Machines[sample_id].GetVersionChainData()
 		vid := int(counter.Load())
 
-		go UpdateMetric(version_chain, vid, lastWriteVid, event.Mid, real_epoch)
+		go UpdateMetric(version_chain, vid, lastWriteVid, sample_id, real_epoch)
 		real_epoch += 1
 	}
 }
 
-func FixedIntervalSimulation() {
-	// interval := conf.AvgInterval
-}
-
 func UpdateMetric(version_chain []string, vid int, lastWriteVid int, mid int, iter int) {
-	a, b, c := PrintMetrics(vid, VerChainStrToInt(version_chain), lastWriteVid, mid)
-	if iter%1000 == 0 {
+	a, b, c, _, e := PrintMetrics(vid, VerChainStrToInt(version_chain), lastWriteVid, mid)
+	if iter == 0 || iter == 10 || iter == 100 || iter == 1000 || iter == 5000 || iter == 10000 || iter == 50000 || iter == 100000 {
 		fmt.Println("-----", iter, "-----")
 		// PlotFlawMetric(int(counter.Load()), factory.Machines, acc_time, dyn_chart)
+		fmt.Println("~vid", vid)
 		fmt.Println("~MRC Metric", a)
 		fmt.Println("~RYWC Metric", b)
 		fmt.Println("~MRW Metric", c)
+		fmt.Println("~CC Metric", e)
 		fmt.Println("-----", iter, "-----")
 	}
 }

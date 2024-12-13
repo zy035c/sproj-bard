@@ -83,8 +83,14 @@ type ConsistentHash struct {
 }
 
 func (mb *PoissonBroker) Put(m []byte) bool {
-	randt := utils.Poisson(1.0 / float64(mb.DelayAvg))
-	time.Sleep(time.Duration(randt))
+	if mb.PacketLossPerctg > 0 {
+		if utils.RandomFloat32(0, 1) < mb.PacketLossPerctg {
+			return false
+		}
+	}
+	if mb.DelayAvg > 0 {
+		time.Sleep(time.Duration(utils.Poisson(utils.Reciprocal(float64(mb.DelayAvg)))))
+	}
 	mb.Channel <- m
 	return true
 }
